@@ -57,6 +57,8 @@ def get_true_problemid(problemid):
         print('Getting true problem IDs...')
         pool = ThreadPool(17)   # total 17 volumes...
         nested = pool.map(get_one_volume, range(1, 18))
+        pool.close()
+        pool.join()
         true_problemids = [v for sub in nested for v in sub]
         with open(true_problemids_file, 'wb') as f:
             pickle.dump(true_problemids, f)
