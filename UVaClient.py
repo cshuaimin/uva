@@ -72,12 +72,12 @@ def download(url, file_name, chunk_size=16*1024):
     r.raise_for_status()
     print('\r' + ' ' * 20, end='', flush=True)
     with open(file_name, 'wb') as f, tqdm(
-            desc='Downloading', leave=False,
+            desc='Downloading',
             total=int(r.headers['Content-Length']),
             unit='B', unit_scale=True, unit_divisor=1024) as bar:
         for buf in r.iter_content(chunk_size):
             f.write(buf)
-            bar.update(chunk_size)
+            bar.update(len(buf))
 
 
 def show_problem(problemid):
