@@ -3,9 +3,9 @@
 import os
 import re
 import time
-import shutil
 import pickle
 import requests
+from tqdm import tqdm
 from bs4 import BeautifulSoup
 from argparse import ArgumentParser
 from multiprocessing.dummy import Pool as ThreadPool
@@ -21,9 +21,10 @@ true_problemids_file = os.path.expanduser('~/UVaOJ/true_problemids')
 
 # change to your proxy
 proxies = {
-    'http': 'socks5://192.168.1.1:1080',
-    'https': 'socks5://192.168.1.1:1080'
+    'http': 'socks5://127.0.0.1:1080',
+    'https': 'socks5://127.0.0.1:1080'
 }
+
 
 def volume_to_category(volume):
     if volume <= 9:
@@ -65,18 +66,28 @@ def get_true_problemid(problemid):
     return true_problemids[problemid - 100]
 
 
+def download(url, file_name, chunk_size=16*1024):
+    print('Connecting...', end='', flush=True)
+    r = requests.get(url, stream=True, proxies=proxies)
+    r.raise_for_status()
+    print('\r' + ' ' * 20, end='', flush=True)
+    with open(file_name, 'wb') as f, tqdm(
+            desc='Downloading', leave=False,
+            total=int(r.headers['Content-Length']),
+            unit='B', unit_scale=True, unit_divisor=1024) as bar:
+        for buf in r.iter_content(chunk_size):
+            f.write(buf)
+            bar.update(chunk_size)
+
+
 def show_problem(problemid):
     file_name = download_dir + '%s.pdf' % problemid
     if not os.path.exists(file_name):
-        print('Downloading %s...' % file_name)
-        r = requests.get(
-                'https://uva.onlinejudge.org/external/{}/p{}.pdf'
-                .format(problemid // 100, problemid),
-                stream=True, proxies=proxies)
-        r.raise_for_status()
-        with open(file_name, 'wb') as f:
-            shutil.copyfileobj(r.raw, f)
-    os.system('evince ' + file_name)
+        download(
+            'https://uva.onlinejudge.org/external/{}/p{}.pdf'
+            .format(problemid // 100, problemid), file_name
+        )
+    os.system('evince {} 2>/dev/null'.format(file_name))
 
 
 def login(username, passwd):
@@ -138,6 +149,7 @@ def get_result(session, submit_id):
             return tds[3]
     return 'not found'
 
+
 def main():
     ap = ArgumentParser(
             description="UVaClient - download UVaOJ's problem "
@@ -168,7 +180,10 @@ def main():
 
         print('Result: ' + result.text.strip())
         if result.a:
-            print('Follow this link for more info: https://uva.onlinejudge.org/' + result.a['href'])
+            print(
+                'Follow this link for more info: '
+                'https://uva.onlinejudge.org/' + result.a['href']
+            )
 
 
 if __name__ == '__main__':
