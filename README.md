@@ -37,8 +37,9 @@ Follow this link for more info: https://uva.onlinejudge.org/index.php?option=com
 ➜  # happy coding!
 ```
 ## Requirements
-```zsh
-$ pip(3) install requests
-$ pip(3) install 'requests[socks]'
-$ pip(3) install bs4
+```
+requests
+requests[socks]
+bs4
+tqdm
 ```
