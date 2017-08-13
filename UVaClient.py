@@ -4,11 +4,13 @@ import os
 import re
 import time
 import pickle
+from argparse import ArgumentParser
+from multiprocessing.dummy import Pool as ThreadPool
+
 import requests
 from tqdm import tqdm
 from bs4 import BeautifulSoup
-from argparse import ArgumentParser
-from multiprocessing.dummy import Pool as ThreadPool
+from termcolor import colored
 
 # your UVa ID
 username = 'xx'
@@ -70,7 +72,7 @@ def download(url, file_name, chunk_size=16*1024):
     print('Connecting...', end='', flush=True)
     r = requests.get(url, stream=True, proxies=proxies)
     r.raise_for_status()
-    print('\r' + ' ' * 20, end='', flush=True)
+    # print('\r' + ' ' * 20, end='', flush=True)
     with open(file_name, 'wb') as f, tqdm(
             desc='Downloading',
             total=int(r.headers['Content-Length']),
@@ -146,7 +148,7 @@ def get_result(session, submit_id):
     for tr in soup.find(id='col3_content_wrapper').find_all('tr'):
         tds = tr.find_all('td')
         if tds[0].text == submit_id:
-            return tds[3]
+            return tds[3].text.strip(), tds[3].a['href'] if tds[3].a else None
     return 'not found'
 
 
@@ -166,23 +168,27 @@ def main():
     else:
         s = login(username, passwd)
         submit_id = submit(s, args.problemid, args.s)
-
-        result = get_result(s, submit_id)
-        if 'In judge queue' in result.text:
-            print('Judging...', end='', flush=True)
+        print('Judging...', end='', flush=True)
+        result, more_info = get_result(s, submit_id)
+        if 'In judge queue' in result:
             while True:
-                time.sleep(1)
+                time.sleep(.5)
                 print('.', end='', flush=True)
-                result = get_result(s, submit_id)
-                if 'In judge queue' not in result.text:
+                result, more_info = get_result(s, submit_id)
+                if 'In judge queue' not in result:
                     print()
                     break
 
-        print('Result: ' + result.text.strip())
-        if result.a:
+        if result == 'Accepted':
+            result = colored(result, 'cyan', attrs=['bold'])
+        else:
+            result = colored(result, 'red', attrs=['bold'])
+        print('Result:', result)
+        if more_info:
             print(
-                'Follow this link for more info: '
-                'https://uva.onlinejudge.org/' + result.a['href']
+                'Follow this link for more info:', colored(
+                    'https://uva.onlinejudge.org/' +
+                    more_info, attrs=['underline'])
             )
 
 
