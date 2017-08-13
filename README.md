@@ -42,4 +42,5 @@ requests
 requests[socks]
 bs4
 tqdm
+termcolor
 ```
