@@ -23,7 +23,7 @@ import (
 
 var (
 	dataPath           = os.Getenv("HOME") + "/.local/share/uva-cli"
-	cookieFile         = dataPath + "/cookiejar.gob"
+	userInfoFile       = dataPath + "/user-info.gob"
 	trueProblemIDsFile = dataPath + "/true-problem-ids.gob"
 	uvaURL, _          = url.Parse(baseURL)
 )
@@ -31,10 +31,15 @@ var (
 const (
 	baseURL = "https://uva.onlinejudge.org"
 	green   = "\033[0;32m"
-	yellow  = "\033[0;33m"
+	yellow  = "\033[1;33m"
 	gray    = "\033[1;30m"
 	end     = "\033[0m"
 )
+
+type userInfo struct {
+	Username     string
+	LoginCookies []*http.Cookie
+}
 
 func exists(file string) bool {
 	_, err := os.Stat(file)
@@ -191,7 +196,7 @@ func doLogin(username, password string) error {
 	return nil
 }
 
-func login(c *cli.Context) error {
+func login() error {
 	if !exists(dataPath) {
 		if err := os.Mkdir(dataPath, 0755); err != nil {
 			return err
@@ -203,7 +208,7 @@ func login(c *cli.Context) error {
 	}
 	http.DefaultClient.Jar = jar
 
-	if !exists(cookieFile) {
+	if !exists(userInfoFile) {
 		var username string
 		fmt.Print("Username: ")
 		fmt.Scanln(&username)
@@ -216,24 +221,29 @@ func login(c *cli.Context) error {
 		if err := doLogin(username, string(password)); err != nil {
 			return err
 		}
-		f, err := os.Create(cookieFile)
+		f, err := os.Create(userInfoFile)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
-		if err := gob.NewEncoder(f).Encode(jar.Cookies(uvaURL)); err != nil {
+		user := userInfo{
+			Username:     username,
+			LoginCookies: jar.Cookies(uvaURL),
+		}
+		if err := gob.NewEncoder(f).Encode(user); err != nil {
 			return err
 		}
+		fmt.Printf("Successfully login as %s%s%s\n", yellow, username, end)
 	} else {
-		f, err := os.Open(cookieFile)
+		f, err := os.Open(userInfoFile)
 		if err != nil {
 			return err
 		}
-		var cookies []*http.Cookie
-		if err := gob.NewDecoder(f).Decode(&cookies); err != nil {
+		var user userInfo
+		if err := gob.NewDecoder(f).Decode(&user); err != nil {
 			return err
 		}
-		jar.SetCookies(uvaURL, cookies)
+		jar.SetCookies(uvaURL, user.LoginCookies)
 	}
 	return nil
 }
@@ -277,16 +287,48 @@ func submit(problemID int, file string) (string, error) {
 	return submitID, nil
 }
 
+func cmdUser(c *cli.Context) error {
+	if c.Bool("l") {
+		return login()
+	}
+	if c.Bool("L") {
+		return os.Remove(userInfoFile)
+	}
+
+	if !exists(userInfoFile) {
+		return errors.New("You are not logged in yet!")
+	}
+	f, err := os.Open(userInfoFile)
+	if err != nil {
+		return err
+	}
+	var user userInfo
+	if err := gob.NewDecoder(f).Decode(&user); err != nil {
+		return err
+	}
+	fmt.Printf("You are now logged in as %s%s%s\n", yellow, user.Username, end)
+	return nil
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Usage = "A cli tool to enjoy uva oj!"
 	app.UsageText = "uva [command]"
 	app.Commands = []cli.Command{
 		{
-			Name:    "login",
-			Aliases: []string{"l"},
-			Usage:   "login to uva oj",
-			Action:  login,
+			Name:  "user",
+			Usage: "manage account",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "l",
+					Usage: "user login",
+				},
+				cli.BoolFlag{
+					Name:  "L",
+					Usage: "user logout",
+				},
+			},
+			Action: cmdUser,
 		},
 	}
 	if err := app.Run(os.Args); err != nil {
