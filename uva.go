@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -24,9 +25,16 @@ var (
 	dataPath           = os.Getenv("HOME") + "/.local/share/uva-cli"
 	cookieFile         = dataPath + "/cookiejar.gob"
 	trueProblemIDsFile = dataPath + "/true-problem-ids.gob"
+	uvaURL, _          = url.Parse(baseURL)
 )
 
-const baseURL = "https://uva.onlinejudge.org"
+const (
+	baseURL = "https://uva.onlinejudge.org"
+	green   = "\033[0;32m"
+	yellow  = "\033[0;33m"
+	gray    = "\033[1;30m"
+	end     = "\033[0m"
+)
 
 func exists(file string) bool {
 	_, err := os.Stat(file)
@@ -34,14 +42,11 @@ func exists(file string) bool {
 }
 
 func spin(text string) func() {
-	const GREEN = "\033[0;32m"
-	const GRAY = "\033[1;30m"
-	const END = "\033[0m"
 	dots := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	for i := 0; i < len(dots); i++ {
-		dots[i] = fmt.Sprintf("%s%s%s", GREEN, dots[i], END)
+		dots[i] = fmt.Sprintf("%s%s%s", green, dots[i], end)
 	}
-	text = fmt.Sprintf("%s%s%s", GRAY, text, END)
+	text = fmt.Sprintf("%s%s%s", gray, text, end)
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	fmt.Printf("%s %s", dots[0], text)
@@ -150,87 +155,90 @@ func getTrueProblemID(pid int) int {
 	return trueIDs[pid-100]
 }
 
-func login(username, password string) http.Client {
-	uvaURL, _ := url.Parse(baseURL)
-
-	doLogin := func(file *os.File) http.Client {
-		defer spin("Signing in uva.onlinejudge.org")()
-		jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-		if err != nil {
-			panic(err)
-		}
-		client := http.Client{Jar: jar}
-		resp, err := http.Get(baseURL)
-		if err != nil {
-			panic(err)
-		}
-		doc, err := goquery.NewDocumentFromResponse(resp)
-		if err != nil {
-			panic(err)
-		}
-		form := url.Values{}
-		doc.Find("#mod_loginform > table > tbody > tr:nth-child(1) > td > input").
-			Each(func(i int, s *goquery.Selection) {
-				name, ok := s.Attr("name")
-				if !ok {
-					panic(err)
-				}
-				value := s.AttrOr("value", "")
-				form.Set(name, value)
-			})
-		form.Set("username", username)
-		form.Set("passwd", password)
-		r, err := client.PostForm(
-			baseURL+"/index.php?option=com_comprofiler&task=login", form)
-		if err != nil {
-			panic(err)
-		}
-		defer r.Body.Close()
-		if r.StatusCode != 200 {
-			panic(r)
-		}
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			panic(err)
-		}
-		if strings.Contains(string(body), "Incorrect username or password") {
-			fmt.Println("Incorrect username or password")
-		}
-		gob.NewEncoder(file).Encode(jar.Cookies(uvaURL))
-		return client
+func doLogin(username, password string) error {
+	defer spin("Signing in uva.onlinejudge.org")()
+	resp, err := http.Get(baseURL)
+	if err != nil {
+		return err
 	}
+	doc, err := goquery.NewDocumentFromResponse(resp)
+	if err != nil {
+		return err
+	}
+	form := url.Values{}
+	doc.Find("#mod_loginform > table > tbody > tr:nth-child(1) > td > input").
+		Each(func(i int, s *goquery.Selection) {
+			name, _ := s.Attr("name")
+			value := s.AttrOr("value", "")
+			form.Set(name, value)
+		})
+	form.Set("username", username)
+	form.Set("passwd", password)
+	r, err := http.PostForm(
+		baseURL+"/index.php?option=com_comprofiler&task=login", form)
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	const failed = "Incorrect username or password"
+	if strings.Contains(string(body), failed) {
+		return errors.New(failed)
+	}
+	return nil
+}
 
+func login(c *cli.Context) error {
 	if !exists(dataPath) {
 		if err := os.Mkdir(dataPath, 0755); err != nil {
-			panic(err)
+			return err
 		}
-	}
-	if !exists(cookieFile) {
-		f, err := os.Create(cookieFile)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-		return doLogin(f)
-	}
-
-	f, err := os.Open(cookieFile)
-	if err != nil {
-		panic(err)
 	}
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
-		panic(err)
+		return err
 	}
-	var cookies []*http.Cookie
-	if err := gob.NewDecoder(f).Decode(&cookies); err != nil {
-		panic(err)
+	http.DefaultClient.Jar = jar
+
+	if !exists(cookieFile) {
+		var username string
+		fmt.Print("Username: ")
+		fmt.Scanln(&username)
+		fmt.Print("Password: ")
+		password, err := terminal.ReadPassword(0)
+		fmt.Print("\n")
+		if err != nil {
+			return err
+		}
+		if err := doLogin(username, string(password)); err != nil {
+			return err
+		}
+		f, err := os.Create(cookieFile)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if err := gob.NewEncoder(f).Encode(jar.Cookies(uvaURL)); err != nil {
+			return err
+		}
+	} else {
+		f, err := os.Open(cookieFile)
+		if err != nil {
+			return err
+		}
+		var cookies []*http.Cookie
+		if err := gob.NewDecoder(f).Decode(&cookies); err != nil {
+			return err
+		}
+		jar.SetCookies(uvaURL, cookies)
 	}
-	jar.SetCookies(uvaURL, cookies)
-	return http.Client{Jar: jar}
+	return nil
 }
 
-func submit(client http.Client, problemID int, file string) string {
+func submit(problemID int, file string) (string, error) {
 	var category int = problemID / 100
 	problemID = getTrueProblemID(problemID)
 	form := url.Values{
@@ -240,37 +248,33 @@ func submit(client http.Client, problemID int, file string) string {
 	}
 	f, err := os.Open(file)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	code, err := ioutil.ReadAll(f)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	form.Set("codeupl", string(code))
 
 	// Prevent HTTP 301 redirect
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	http.DefaultClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
+	defer func() { http.DefaultClient.CheckRedirect = nil }()
 	defer spin("Sending code to judge")()
-	resp, err := client.PostForm(baseURL+
+	resp, err := http.PostForm(baseURL+
 		"/index.php?option=com_onlinejudge&Itemid=8&page=save_submission", form)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	b, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println(string(b))
 	resp.Body.Close()
-	if resp.StatusCode != 301 {
-		panic(resp)
-	}
 	location := resp.Header["Location"][0]
 	start := len(location) - 1
 	for location[start-1] != '+' {
 		start--
 	}
 	submitID := location[start:]
-	return submitID
+	return submitID, nil
 }
 
 func main() {
@@ -282,18 +286,10 @@ func main() {
 			Name:    "login",
 			Aliases: []string{"l"},
 			Usage:   "login to uva oj",
-			Action: func(c *cli.Context) {
-				var username string
-				fmt.Print("Username: ")
-				fmt.Scanln(&username)
-				fmt.Print("Password: ")
-				password, err := terminal.ReadPassword(0)
-				if err != nil {
-					panic(err)
-				}
-				login(username, string(password))
-			},
+			Action:  login,
 		},
 	}
-	app.Run(os.Args)
+	if err := app.Run(os.Args); err != nil {
+		fmt.Println(err)
+	}
 }
