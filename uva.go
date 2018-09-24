@@ -22,14 +22,15 @@ import (
 )
 
 var (
-	dataPath           = os.Getenv("HOME") + "/.local/share/uva-cli"
-	userInfoFile       = dataPath + "/user-info.gob"
-	trueProblemIDsFile = dataPath + "/true-problem-ids.gob"
-	uvaURL, _          = url.Parse(baseURL)
+	dataPath         = os.Getenv("HOME") + "/.local/share/uva-cli"
+	userInfoFile     = dataPath + "/user-info.gob"
+	problemsInfoFile = dataPath + "/problems-info.gob"
+	uvaURL, _        = url.Parse(baseURL)
 )
 
 const (
 	baseURL = "https://uva.onlinejudge.org"
+	red     = "\033[0;31m"
 	green   = "\033[0;32m"
 	yellow  = "\033[1;33m"
 	gray    = "\033[1;30m"
@@ -37,8 +38,16 @@ const (
 )
 
 type userInfo struct {
+	// Export these fields so that gob can dump them.
 	Username     string
 	LoginCookies []*http.Cookie
+}
+
+type problemInfo struct {
+	Title            string
+	TotalSubmissions int
+	Percentage       float32
+	TrueID           int
 }
 
 func exists(file string) bool {
@@ -90,10 +99,10 @@ func volumeToCategory(volume int) int {
 	return -1
 }
 
-func crawlTrueProblemIDs() []int {
+func crawlProblemsInfo() []problemInfo {
 	defer spin("Downloading problem list")()
 	const VOLUMES = 17
-	resultChan := make(chan int)
+	resultChan := make(chan problemInfo)
 	var wg sync.WaitGroup
 	wg.Add(VOLUMES)
 	for i := 1; i <= VOLUMES; i++ {
@@ -106,21 +115,22 @@ func crawlTrueProblemIDs() []int {
 				panic(err)
 			}
 			doc, err := goquery.NewDocumentFromResponse(resp)
-			doc.Find("#col3_content_wrapper > table:nth-child(4) > tbody > tr").
+			doc.Find("#col3_content_wrapper > table:nth-child(4) > tbody > tr.sectiontableentry1").
 				Each(func(i int, s *goquery.Selection) {
-					href, ok := s.Attr("href")
-					if !ok {
-						panic("Failed to query selector")
-					}
+					var problem problemInfo
+					ele := s.Find("td:nth-child(3) > a")
+					problem.Title = ele.Text()
+					href, _ := ele.Attr("href")
 					start := len(href) - 1
 					for href[start-1] != '=' {
 						start--
 					}
-					pid, err := strconv.Atoi(href[start:])
-					if err != nil {
-						panic("Failed when atoi")
-					}
-					resultChan <- pid
+					problem.TrueID, _ = strconv.Atoi(href[start:])
+					problem.TotalSubmissions, _ = strconv.Atoi(s.Find("td:nth-child(4)").Text())
+					text := s.Find("td:nth-child(5) > div > div:nth-child(2)").Text()
+					p, _ := strconv.ParseFloat(text[:len(text)-1], 32)
+					problem.Percentage = float32(p)
+					resultChan <- problem
 				})
 			wg.Done()
 		}(i)
@@ -129,35 +139,38 @@ func crawlTrueProblemIDs() []int {
 		wg.Wait()
 		close(resultChan)
 	}()
-	var problemIDs []int
-	for pid := range resultChan {
-		problemIDs = append(problemIDs, pid)
+	var problems []problemInfo
+	for p := range resultChan {
+		problems = append(problems, p)
 	}
-	sort.Ints(problemIDs)
+	sort.Slice(problems, func(i, j int) bool {
+		return problems[i].TrueID < problems[j].TrueID
+	})
 
-	f, err := os.Create(trueProblemIDsFile)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	gob.NewEncoder(f).Encode(problemIDs)
-	return problemIDs
+	return problems
 }
 
-func getTrueProblemID(pid int) int {
-	var trueIDs []int
-	if exists(trueProblemIDsFile) {
-		f, err := os.Open(trueProblemIDsFile)
+func getProblemInfo(pid int) problemInfo {
+	var problems []problemInfo
+	if exists(problemsInfoFile) {
+		f, err := os.Open(problemsInfoFile)
 		if err != nil {
 			panic(err)
 		}
-		if err := gob.NewDecoder(f).Decode(&trueIDs); err != nil {
+		defer f.Close()
+		if err := gob.NewDecoder(f).Decode(&problems); err != nil {
 			panic(err)
 		}
 	} else {
-		trueIDs = crawlTrueProblemIDs()
+		f, err := os.Create(problemsInfoFile)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+		problems = crawlProblemsInfo()
+		gob.NewEncoder(f).Encode(problems)
 	}
-	return trueIDs[pid-100]
+	return problems[pid-100]
 }
 
 func doLogin(username, password string) error {
@@ -250,7 +263,7 @@ func login() error {
 
 func submit(problemID int, file string) (string, error) {
 	var category int = problemID / 100
-	problemID = getTrueProblemID(problemID)
+	problemID = getProblemInfo(problemID).TrueID
 	form := url.Values{
 		"problemid": {strconv.Itoa(problemID)},
 		"category":  {strconv.Itoa(category)},
@@ -330,8 +343,9 @@ func main() {
 			},
 			Action: cmdUser,
 		},
+		{},
 	}
 	if err := app.Run(os.Args); err != nil {
-		fmt.Println(err)
+		fmt.Printf("%s%s%s\n", red, err, end)
 	}
 }
