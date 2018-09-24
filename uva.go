@@ -107,6 +107,12 @@ func crawlProblemsInfo() []problemInfo {
 	wg.Add(VOLUMES)
 	for i := 1; i <= VOLUMES; i++ {
 		go func(volume int) {
+			defer func() {
+				if err := recover(); err != nil {
+					fmt.Printf("%s%s%s\n", red, err, end)
+					os.Exit(1)
+				}
+			}()
 			category := volumeToCategory(volume)
 			resp, err := http.Get(fmt.Sprintf("%s%s%s", baseURL,
 				"/index.php?option=com_onlinejudge&Itemid=8&category=",
@@ -120,7 +126,10 @@ func crawlProblemsInfo() []problemInfo {
 					var problem problemInfo
 					ele := s.Find("td:nth-child(3) > a")
 					problem.Title = ele.Text()
-					href, _ := ele.Attr("href")
+					href, ok := ele.Attr("href")
+					if !ok {
+						panic("href not exists")
+					}
 					start := len(href) - 1
 					for href[start-1] != '=' {
 						start--
@@ -150,27 +159,29 @@ func crawlProblemsInfo() []problemInfo {
 	return problems
 }
 
-func getProblemInfo(pid int) problemInfo {
+func getProblemInfo(pid int) (problemInfo, error) {
 	var problems []problemInfo
 	if exists(problemsInfoFile) {
 		f, err := os.Open(problemsInfoFile)
 		if err != nil {
-			panic(err)
+			return problemInfo{}, err
 		}
 		defer f.Close()
 		if err := gob.NewDecoder(f).Decode(&problems); err != nil {
-			panic(err)
+			return problemInfo{}, err
 		}
 	} else {
 		f, err := os.Create(problemsInfoFile)
 		if err != nil {
-			panic(err)
+			return problemInfo{}, err
 		}
 		defer f.Close()
 		problems = crawlProblemsInfo()
-		gob.NewEncoder(f).Encode(problems)
+		if err := gob.NewEncoder(f).Encode(problems); err != nil {
+			return problemInfo{}, err
+		}
 	}
-	return problems[pid-100]
+	return problems[pid-100], nil
 }
 
 func doLogin(username, password string) error {
@@ -263,7 +274,11 @@ func login() error {
 
 func submit(problemID int, file string) (string, error) {
 	var category int = problemID / 100
-	problemID = getProblemInfo(problemID).TrueID
+	info, err := getProblemInfo(problemID)
+	if err != nil {
+		return "", err
+	}
+	problemID = info.TrueID
 	form := url.Values{
 		"problemid": {strconv.Itoa(problemID)},
 		"category":  {strconv.Itoa(category)},
