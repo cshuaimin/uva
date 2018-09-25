@@ -4,11 +4,14 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"os/exec"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,25 +19,29 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/dustin/go-humanize"
 	"github.com/urfave/cli"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/publicsuffix"
 )
 
 var (
-	dataPath         = os.Getenv("HOME") + "/.local/share/uva-cli"
-	userInfoFile     = dataPath + "/user-info.gob"
-	problemsInfoFile = dataPath + "/problems-info.gob"
+	dataPath         = os.Getenv("HOME") + "/.local/share/uva-cli/"
+	pdfPath          = dataPath + "pdf/"
+	userInfoFile     = dataPath + "user-info.gob"
+	problemsInfoFile = dataPath + "problems-info.gob"
 	uvaURL, _        = url.Parse(baseURL)
 )
 
 const (
-	baseURL = "https://uva.onlinejudge.org"
-	red     = "\033[0;31m"
-	green   = "\033[0;32m"
-	yellow  = "\033[1;33m"
-	gray    = "\033[1;30m"
-	end     = "\033[0m"
+	baseURL  = "https://uva.onlinejudge.org"
+	red      = "\033[0;31m"
+	green    = "\033[0;32m"
+	yellow   = "\033[0;33m"
+	gray     = "\033[1;30m"
+	hiyellow = "\033[1;33m"
+	hiwhite  = "\033[1;37m"
+	end      = "\033[0m"
 )
 
 type userInfo struct {
@@ -105,6 +112,9 @@ func crawlProblemsInfo() []problemInfo {
 	resultChan := make(chan problemInfo)
 	var wg sync.WaitGroup
 	wg.Add(VOLUMES)
+	// \s does not match &nbsp;
+	titleRegex, _ := regexp.Compile("\\d+\u00A0-\u00A0(.+)")
+	trueIDRegex, _ := regexp.Compile(`.+problem=(\d+)`)
 	for i := 1; i <= VOLUMES; i++ {
 		go func(volume int) {
 			defer func() {
@@ -121,20 +131,17 @@ func crawlProblemsInfo() []problemInfo {
 				panic(err)
 			}
 			doc, err := goquery.NewDocumentFromResponse(resp)
-			doc.Find("#col3_content_wrapper > table:nth-child(4) > tbody > tr.sectiontableentry1").
+			doc.Find("#col3_content_wrapper > table:nth-child(4) > tbody > tr[class^=sectiontableentry]").
 				Each(func(i int, s *goquery.Selection) {
 					var problem problemInfo
 					ele := s.Find("td:nth-child(3) > a")
-					problem.Title = ele.Text()
+					problem.Title = string(titleRegex.FindSubmatch([]byte(ele.Text()))[1])
 					href, ok := ele.Attr("href")
 					if !ok {
 						panic("href not exists")
 					}
-					start := len(href) - 1
-					for href[start-1] != '=' {
-						start--
-					}
-					problem.TrueID, _ = strconv.Atoi(href[start:])
+					tid := string(trueIDRegex.FindSubmatch([]byte(href))[1])
+					problem.TrueID, _ = strconv.Atoi(tid)
 					problem.TotalSubmissions, _ = strconv.Atoi(s.Find("td:nth-child(4)").Text())
 					text := s.Find("td:nth-child(5) > div > div:nth-child(2)").Text()
 					p, _ := strconv.ParseFloat(text[:len(text)-1], 32)
@@ -171,12 +178,12 @@ func getProblemInfo(pid int) (problemInfo, error) {
 			return problemInfo{}, err
 		}
 	} else {
+		problems = crawlProblemsInfo()
 		f, err := os.Create(problemsInfoFile)
 		if err != nil {
 			return problemInfo{}, err
 		}
 		defer f.Close()
-		problems = crawlProblemsInfo()
 		if err := gob.NewEncoder(f).Encode(problems); err != nil {
 			return problemInfo{}, err
 		}
@@ -257,7 +264,7 @@ func login() error {
 		if err := gob.NewEncoder(f).Encode(user); err != nil {
 			return err
 		}
-		fmt.Printf("Successfully login as %s%s%s\n", yellow, username, end)
+		fmt.Printf("Successfully login as %s%s%s\n", hiyellow, username, end)
 	} else {
 		f, err := os.Open(userInfoFile)
 		if err != nil {
@@ -315,7 +322,7 @@ func submit(problemID int, file string) (string, error) {
 	return submitID, nil
 }
 
-func cmdUser(c *cli.Context) error {
+func user(c *cli.Context) error {
 	if c.Bool("l") {
 		return login()
 	}
@@ -334,7 +341,130 @@ func cmdUser(c *cli.Context) error {
 	if err := gob.NewDecoder(f).Decode(&user); err != nil {
 		return err
 	}
-	fmt.Printf("You are now logged in as %s%s%s\n", yellow, user.Username, end)
+	fmt.Printf("You are now logged in as %s%s%s\n", hiyellow, user.Username, end)
+	return nil
+}
+
+type pdfInfo struct {
+	pinfo        problemInfo
+	description  string
+	input        string
+	output       string
+	sampleInput  string
+	sampleOutput string
+}
+
+func parsePdf(pid int) (pdfInfo, error) {
+	var pdf pdfInfo
+	if !exists(pdfPath) {
+		if err := os.Mkdir(pdfPath, 0755); err != nil {
+			return pdf, err
+		}
+	}
+	var err error
+	pdf.pinfo, err = getProblemInfo(pid)
+	if err != nil {
+		return pdf, err
+	}
+	title := strings.Replace(pdf.pinfo.Title, " ", "-", -1)
+	pdfFile := fmt.Sprintf("%s%d.%s.pdf", pdfPath, pid, title)
+	var f *os.File
+
+	if exists(pdfFile) {
+		f, err = os.Open(pdfFile)
+		if err != nil {
+			return pdf, err
+		}
+	} else {
+		f, err = os.Create(pdfFile)
+		if err != nil {
+			return pdf, err
+		}
+		stop := spin("Downloading " + title)
+		resp, err := http.Get(fmt.Sprintf("%s/external/%d/p%d.pdf", baseURL, pid/100, pid))
+		if err != nil {
+			return pdf, err
+		}
+		if _, err := io.Copy(f, resp.Body); err != nil {
+			return pdf, err
+		}
+		resp.Body.Close()
+		stop()
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return pdf, err
+		}
+	}
+	defer f.Close()
+
+	cmd := exec.Command("pdftotext", "-", "-")
+	cmd.Stdin = f
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return pdf, err
+	}
+	defer out.Close()
+	if err := cmd.Start(); err != nil {
+		return pdf, err
+	}
+	bs, err := ioutil.ReadAll(out)
+	if err != nil {
+		return pdf, err
+	}
+	pdfRegex, _ := regexp.Compile("(?s)(.+)\nInput\n(.+)\nOutput\n(.+)\nSample Input\n(.+)\nSample Output\n(.+)")
+	res := pdfRegex.FindSubmatch(bs)[1:]
+	indent := func(b []byte) string {
+		return "       " + strings.Replace(string(b), "\n", "\n       ", -1)
+	}
+	pdf.description = indent(res[0])
+	pdf.input = indent(res[1])
+	pdf.output = indent(res[2])
+	pdf.sampleInput = indent(res[3])
+	pdf.sampleOutput = indent(res[4])
+	return pdf, nil
+
+}
+
+func show(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return errors.New("problem name or id required")
+	}
+	pid, err := strconv.Atoi(c.Args().First()) // TODO: prohlem name
+	if err != nil {
+		return err
+	}
+	pdf, err := parsePdf(pid)
+	if err != nil {
+		return err
+	}
+
+	title := fmt.Sprintf("%d - %s", pid, pdf.pinfo.Title)
+	padding := strings.Repeat(" ", (108-len(title))/2)
+	fmt.Printf("%s%s%s%s\n\n", padding, hiwhite, title, end)
+
+	fmt.Printf("%sStatistics%s\n", hiwhite, end)
+	fmt.Printf("       * Rate: %.1f %%\n", pdf.pinfo.Percentage)
+	accepted := humanize.Bytes(uint64(float32(pdf.pinfo.TotalSubmissions) * pdf.pinfo.Percentage))
+	fmt.Printf("       * Total Accepted: %s\n", accepted[:len(accepted)-1])
+	submissions := humanize.Bytes(uint64(pdf.pinfo.TotalSubmissions))
+	fmt.Printf("       * Total Submissions: %s\n\n", submissions[:len(submissions)-1])
+
+	fmt.Printf("%sDescription%s\n", hiwhite, end)
+	fmt.Println(pdf.description)
+
+	if c.Bool("p") {
+		fmt.Printf("%sInput%s\n", hiwhite, end)
+		fmt.Println(pdf.input)
+
+		fmt.Printf("%sOutput%s\n", hiwhite, end)
+		fmt.Println(pdf.output)
+
+		fmt.Printf("%sSample Input%s\n", hiwhite, end)
+		fmt.Println(pdf.sampleInput)
+
+		fmt.Printf("%sSample Output%s\n", hiwhite, end)
+		fmt.Println(pdf.sampleOutput)
+	}
+
 	return nil
 }
 
@@ -356,9 +486,19 @@ func main() {
 					Usage: "user logout",
 				},
 			},
-			Action: cmdUser,
+			Action: user,
 		},
-		{},
+		{
+			Name:  "show",
+			Usage: "show problem by name or id",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "p",
+					Usage: "show input/output",
+				},
+			},
+			Action: show,
+		},
 	}
 	if err := app.Run(os.Args); err != nil {
 		fmt.Printf("%s%s%s\n", red, err, end)
