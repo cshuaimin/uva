@@ -37,6 +37,7 @@ const (
 	baseURL  = "https://uva.onlinejudge.org"
 	red      = "\033[0;31m"
 	green    = "\033[0;32m"
+	cyan     = "\033[1;36m"
 	yellow   = "\033[0;33m"
 	gray     = "\033[1;30m"
 	hiyellow = "\033[1;33m"
@@ -280,7 +281,7 @@ func login() error {
 }
 
 func submit(problemID int, file string) (string, error) {
-	var category int = problemID / 100
+	category := problemID / 100
 	info, err := getProblemInfo(problemID)
 	if err != nil {
 		return "", err
@@ -299,7 +300,7 @@ func submit(problemID int, file string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	form.Set("codeupl", string(code))
+	form.Set("code", string(code))
 
 	// Prevent HTTP 301 redirect
 	http.DefaultClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -320,6 +321,55 @@ func submit(problemID int, file string) (string, error) {
 	}
 	submitID := location[start:]
 	return submitID, nil
+}
+
+func getResult(submitID string) (result, runTime string, _ error) {
+	resp, err := http.Get(baseURL + "/index.php?option=com_onlinejudge&Itemid=9")
+	if err != nil {
+		return "", "", err
+	}
+	doc, err := goquery.NewDocumentFromResponse(resp)
+	if err != nil {
+		return "", "", err
+	}
+	row := doc.Find("#col3_content_wrapper > table:nth-child(3) > tbody > tr:nth-child(2) > td")
+	if row.First().Text() != submitID {
+		return "", "", errors.New("not latest submit")
+	}
+	return strings.TrimSpace(row.Eq(3).Text()), row.Eq(5).Text(), nil
+}
+
+func submitAndShowResult(c *cli.Context) error {
+	if c.NArg() == 0 {
+		return errors.New("filename required")
+	}
+	pid := c.Int("i")
+	if pid == 0 {
+		//
+	}
+	sid, err := submit(pid, c.Args().Get(0))
+	if err != nil {
+		return err
+	}
+	stop := spin("Waiting for judge result")
+	const judging = "In judge queue"
+	result := judging
+	var runTime string
+	for result == judging {
+		result, runTime, err = getResult(sid)
+		if err != nil {
+			return err
+		}
+		time.Sleep(1 * time.Second)
+	}
+	stop()
+
+	if result == "Accepted" {
+		fmt.Printf("%s✔ Accepted (%ss)%s\n", cyan, runTime, end)
+	} else {
+		fmt.Printf("%s✘ %s%s\n", red, result, end)
+	}
+	return nil
 }
 
 func user(c *cli.Context) error {
@@ -499,7 +549,19 @@ func main() {
 			},
 			Action: show,
 		},
+		{
+			Name:  "submit",
+			Usage: "submit code",
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "i",
+					Usage: "problem ID",
+				},
+			},
+			Action: submitAndShowResult,
+		},
 	}
+	login()
 	if err := app.Run(os.Args); err != nil {
 		fmt.Printf("%s%s%s\n", red, err, end)
 	}
