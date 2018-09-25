@@ -315,11 +315,8 @@ func submit(problemID int, file string) (string, error) {
 	}
 	resp.Body.Close()
 	location := resp.Header["Location"][0]
-	start := len(location) - 1
-	for location[start-1] != '+' {
-		start--
-	}
-	submitID := location[start:]
+	sidRegex, _ := regexp.Compile(`Submission\+received\+with\+ID\+(\d+)`)
+	submitID := string(sidRegex.FindSubmatch([]byte(location))[1])
 	return submitID, nil
 }
 
@@ -561,7 +558,9 @@ func main() {
 			Action: submitAndShowResult,
 		},
 	}
-	login()
+	if err := login(); err != nil {
+		fmt.Printf("%s%s%s\n", red, err, end)
+	}
 	if err := app.Run(os.Args); err != nil {
 		fmt.Printf("%s%s%s\n", red, err, end)
 	}
