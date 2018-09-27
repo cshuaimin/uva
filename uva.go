@@ -27,7 +27,7 @@ import (
 var (
 	dataPath         = os.Getenv("HOME") + "/.local/share/uva-cli/"
 	pdfPath          = dataPath + "pdf/"
-	userInfoFile     = dataPath + "user-info.gob"
+	loginInfoFile    = dataPath + "login-info.gob"
 	problemsInfoFile = dataPath + "problems-info.gob"
 	uvaURL, _        = url.Parse(baseURL)
 )
@@ -44,22 +44,71 @@ const (
 	end      = "\033[0m"
 )
 
-type userInfo struct {
-	// Export these fields so that gob can dump them.
-	Username     string
-	LoginCookies []*http.Cookie
-}
+func main() {
+	app := cli.NewApp()
+	app.Usage = "A cli tool to enjoy uva oj!"
+	app.UsageText = "uva [command]"
+	loadCookies := func(c *cli.Context) error {
+		loadLoginInfo()
+		return nil
+	}
+	app.Commands = []cli.Command{
+		{
+			Name:  "user",
+			Usage: "manage account",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "l",
+					Usage: "user login",
+				},
+				cli.BoolFlag{
+					Name:  "L",
+					Usage: "user logout",
+				},
+			},
+			Action: user,
+		},
+		{
+			Name:  "show",
+			Usage: "show problem by name or id",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "p",
+					Usage: "show input/output",
+				},
+			},
+			Action: show,
+			Before: loadCookies,
+		},
+		{
+			Name:  "submit",
+			Usage: "submit code",
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "i",
+					Usage: "problem ID",
+				},
+			},
+			Action: submitAndShowResult,
+			Before: loadCookies,
+		},
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("%s%s%s\n", red, err, end)
+			os.Exit(1)
+		}
+	}()
 
-type problemInfo struct {
-	Title            string
-	TotalSubmissions int
-	Percentage       float32
-	TrueID           int
-}
-
-func exists(file string) bool {
-	_, err := os.Stat(file)
-	return !os.IsNotExist(err)
+	// make data directories
+	for _, path := range []string{dataPath, pdfPath} {
+		if !exists(path) {
+			if err := os.Mkdir(path, 0755); err != nil {
+				panic(err)
+			}
+		}
+	}
+	app.Run(os.Args)
 }
 
 func spin(text string) func() {
@@ -90,6 +139,11 @@ func spin(text string) func() {
 	}
 }
 
+func exists(file string) bool {
+	_, err := os.Stat(file)
+	return !os.IsNotExist(err)
+}
+
 func volumeToCategory(volume int) int {
 	switch {
 	case volume <= 9:
@@ -104,6 +158,13 @@ func volumeToCategory(volume int) int {
 		return 859
 	}
 	return -1
+}
+
+type problemInfo struct {
+	Title            string
+	TotalSubmissions int
+	Percentage       float32
+	TrueID           int
 }
 
 func crawlProblemsInfo() []problemInfo {
@@ -194,8 +255,30 @@ func getProblemInfo(pid int) problemInfo {
 	return problems[pid-100]
 }
 
-func doLogin(username, password string) {
-	defer spin("Signing in uva.onlinejudge.org")()
+type loginInfo struct {
+	// Export these fields so that gob can dump them.
+	Username string
+	Cookies  []*http.Cookie
+}
+
+func login() {
+	var username string
+	fmt.Print("Username: ")
+	fmt.Scanln(&username)
+	fmt.Print("Password: ")
+	password, err := terminal.ReadPassword(0)
+	fmt.Print("\n")
+	if err != nil {
+		panic(err)
+	}
+
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		panic(err)
+	}
+	http.DefaultClient.Jar = jar
+
+	stop := spin("Signing in uva.onlinejudge.org")
 	resp, err := http.Get(baseURL)
 	if err != nil {
 		panic(err)
@@ -212,7 +295,7 @@ func doLogin(username, password string) {
 			form.Set(name, value)
 		})
 	form.Set("username", username)
-	form.Set("passwd", password)
+	form.Set("passwd", string(password))
 	r, err := http.PostForm(
 		baseURL+"/index.php?option=com_comprofiler&task=login", form)
 	if err != nil {
@@ -227,55 +310,43 @@ func doLogin(username, password string) {
 	if strings.Contains(string(body), failed) {
 		panic(failed)
 	}
+	f, err := os.Create(loginInfoFile)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	info := loginInfo{
+		Username: username,
+		Cookies:  http.DefaultClient.Jar.Cookies(uvaURL),
+	}
+	if err := gob.NewEncoder(f).Encode(info); err != nil {
+		panic(err)
+	}
+	stop()
+	fmt.Printf("Successfully login as %s%s%s\n", hiyellow, username, end)
 }
 
-func login() {
-	if !exists(dataPath) {
-		if err := os.Mkdir(dataPath, 0755); err != nil {
-			panic(err)
-		}
+func loadLoginInfo() loginInfo {
+	if !exists(loginInfoFile) {
+		panic("you are not logged in yet")
+	}
+
+	f, err := os.Open(loginInfoFile)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	var info loginInfo
+	if err := gob.NewDecoder(f).Decode(&info); err != nil {
+		panic(err)
 	}
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		panic(err)
 	}
+	jar.SetCookies(uvaURL, info.Cookies)
 	http.DefaultClient.Jar = jar
-
-	if !exists(userInfoFile) {
-		var username string
-		fmt.Print("Username: ")
-		fmt.Scanln(&username)
-		fmt.Print("Password: ")
-		password, err := terminal.ReadPassword(0)
-		fmt.Print("\n")
-		if err != nil {
-			panic(err)
-		}
-		doLogin(username, string(password))
-		f, err := os.Create(userInfoFile)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-		user := userInfo{
-			Username:     username,
-			LoginCookies: jar.Cookies(uvaURL),
-		}
-		if err := gob.NewEncoder(f).Encode(user); err != nil {
-			panic(err)
-		}
-		fmt.Printf("Successfully login as %s%s%s\n", hiyellow, username, end)
-	} else {
-		f, err := os.Open(userInfoFile)
-		if err != nil {
-			panic(err)
-		}
-		var user userInfo
-		if err := gob.NewDecoder(f).Decode(&user); err != nil {
-			panic(err)
-		}
-		jar.SetCookies(uvaURL, user.LoginCookies)
-	}
+	return info
 }
 
 func submit(problemID int, file string) string {
@@ -363,24 +434,13 @@ func user(c *cli.Context) {
 		return
 	}
 	if c.Bool("L") {
-		if err := os.Remove(userInfoFile); err != nil {
+		if err := os.Remove(loginInfoFile); err != nil {
 			panic(err)
 		}
 		return
 	}
 
-	if !exists(userInfoFile) {
-		panic("You are not logged in yet!")
-	}
-	f, err := os.Open(userInfoFile)
-	if err != nil {
-		panic(err)
-	}
-	var user userInfo
-	if err := gob.NewDecoder(f).Decode(&user); err != nil {
-		panic(err)
-	}
-	fmt.Printf("You are now logged in as %s%s%s\n", hiyellow, user.Username, end)
+	fmt.Printf("You are now logged in as %s%s%s\n", hiyellow, loadLoginInfo().Username, end)
 }
 
 type pdfInfo struct {
@@ -394,11 +454,6 @@ type pdfInfo struct {
 
 func parsePdf(pid int) pdfInfo {
 	var pdf pdfInfo
-	if !exists(pdfPath) {
-		if err := os.Mkdir(pdfPath, 0755); err != nil {
-			panic(err)
-		}
-	}
 	pdf.pinfo = getProblemInfo(pid)
 	title := strings.Replace(pdf.pinfo.Title, " ", "-", -1)
 	pdfFile := fmt.Sprintf("%s%d.%s.pdf", pdfPath, pid, title)
@@ -496,58 +551,4 @@ func show(c *cli.Context) {
 		fmt.Printf("%sSample Output%s\n", hiwhite, end)
 		fmt.Println(pdf.sampleOutput)
 	}
-}
-
-func main() {
-	app := cli.NewApp()
-	app.Usage = "A cli tool to enjoy uva oj!"
-	app.UsageText = "uva [command]"
-	app.Commands = []cli.Command{
-		{
-			Name:  "user",
-			Usage: "manage account",
-			Flags: []cli.Flag{
-				cli.BoolFlag{
-					Name:  "l",
-					Usage: "user login",
-				},
-				cli.BoolFlag{
-					Name:  "L",
-					Usage: "user logout",
-				},
-			},
-			Action: user,
-		},
-		{
-			Name:  "show",
-			Usage: "show problem by name or id",
-			Flags: []cli.Flag{
-				cli.BoolFlag{
-					Name:  "p",
-					Usage: "show input/output",
-				},
-			},
-			Action: show,
-		},
-		{
-			Name:  "submit",
-			Usage: "submit code",
-			Flags: []cli.Flag{
-				cli.IntFlag{
-					Name:  "i",
-					Usage: "problem ID",
-				},
-			},
-			Action: submitAndShowResult,
-		},
-	}
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Printf("%s%s%s\n", red, err, end)
-			os.Exit(1)
-		}
-	}()
-
-	login() // TODO: don't call login() twice
-	app.Run(os.Args)
 }
