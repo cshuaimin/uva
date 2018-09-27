@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -108,6 +107,7 @@ func main() {
 			}
 		}
 	}
+	getProblemInfo(900)
 	app.Run(os.Args)
 }
 
@@ -144,50 +144,70 @@ func exists(file string) bool {
 	return !os.IsNotExist(err)
 }
 
-func volumeToCategory(volume int) int {
-	switch {
-	case volume <= 9:
-		return volume + 2
-	case 10 <= volume && volume <= 12:
-		return volume + 235
-	case 13 <= volume && volume <= 15:
-		return volume + 433
-	case volume == 16:
-		return 825
-	case volume == 17:
-		return 859
-	}
-	return -1
-}
-
 type problemInfo struct {
 	Title            string
+	ID               int
+	TrueID           int
 	TotalSubmissions int
 	Percentage       float32
-	TrueID           int
 }
 
-func crawlProblemsInfo() []problemInfo {
-	defer spin("Downloading problem list")()
-	const VOLUMES = 17
-	resultChan := make(chan problemInfo)
-	var wg sync.WaitGroup
-	wg.Add(VOLUMES)
-	// \s does not match &nbsp;
-	titleRegex, _ := regexp.Compile("\\d+\u00A0-\u00A0(.+)")
-	trueIDRegex, _ := regexp.Compile(`.+problem=(\d+)`)
-	for i := 1; i <= VOLUMES; i++ {
-		go func(volume int) {
-			defer func() {
-				if err := recover(); err != nil {
-					fmt.Printf("%s%s%s\n", red, err, end)
-					os.Exit(1)
+func crawlProblemsInfo() map[int]problemInfo {
+	// First, get all volumes' URL from two categories - "Problem Set Volumes" and "Contest Volumes".
+	volumesChan := make(chan string)
+	var volumesWaitGroup sync.WaitGroup
+	getVolumes := func(category int) {
+		defer func() {
+			if err := recover(); err != nil {
+				fmt.Printf("%s%s%s\n", red, err, end)
+				os.Exit(1)
+			}
+		}()
+
+		resp, err := http.Get(fmt.Sprintf("%s/index.php?option=com_onlinejudge&Itemid=8&category=%d", baseURL, category))
+		if err != nil {
+			panic(err)
+		}
+		doc, err := goquery.NewDocumentFromResponse(resp)
+		if err != nil {
+			panic(err)
+		}
+		doc.Find("#col3_content_wrapper > table:nth-child(4) > tbody > tr > td > a").
+			Each(func(i int, s *goquery.Selection) {
+				href, ok := s.Attr("href")
+				if !ok {
+					panic("href not exists")
 				}
-			}()
-			category := volumeToCategory(volume)
-			resp, err := http.Get(fmt.Sprintf("%s%s%s", baseURL,
-				"/index.php?option=com_onlinejudge&Itemid=8&category=",
-				strconv.Itoa(category)))
+				volumesChan <- href
+			})
+		volumesWaitGroup.Done()
+	}
+	volumesWaitGroup.Add(2)
+	// Problem Set Volumes (100...1999)
+	go getVolumes(1)
+	// Contest Volumes (10000...)
+	go getVolumes(2)
+	go func() {
+		volumesWaitGroup.Wait()
+		close(volumesChan)
+	}()
+
+	// Second, get all problems' information from each volume.
+	problemsChan := make(chan problemInfo)
+	var problemsWaitGroup sync.WaitGroup
+	// \s does not match &nbsp;
+	titleRegex, _ := regexp.Compile("(\\d+)\u00A0-\u00A0(.+)")
+	trueIDRegex, _ := regexp.Compile(`.+problem=(\d+)`)
+	getProblems := func() {
+		defer func() {
+			if err := recover(); err != nil {
+				fmt.Printf("%s%s%s\n", red, err, end)
+				os.Exit(1)
+			}
+		}()
+
+		for volumeURL := range volumesChan {
+			resp, err := http.Get(fmt.Sprintf("%s/%s", baseURL, volumeURL))
 			if err != nil {
 				panic(err)
 			}
@@ -199,39 +219,44 @@ func crawlProblemsInfo() []problemInfo {
 				Each(func(i int, s *goquery.Selection) {
 					var problem problemInfo
 					ele := s.Find("td:nth-child(3) > a")
-					problem.Title = string(titleRegex.FindSubmatch([]byte(ele.Text()))[1])
+					match := titleRegex.FindSubmatch([]byte(ele.Text()))[1:]
+					problem.ID, _ = strconv.Atoi(string(match[0]))
+					problem.Title = string(match[1])
 					href, ok := ele.Attr("href")
 					if !ok {
 						panic("href not exists")
 					}
-					tid := string(trueIDRegex.FindSubmatch([]byte(href))[1])
-					problem.TrueID, _ = strconv.Atoi(tid)
+					problem.TrueID, _ = strconv.Atoi(string(trueIDRegex.FindSubmatch([]byte(href))[1]))
 					problem.TotalSubmissions, _ = strconv.Atoi(s.Find("td:nth-child(4)").Text())
 					text := s.Find("td:nth-child(5) > div > div:nth-child(2)").Text()
 					p, _ := strconv.ParseFloat(text[:len(text)-1], 32)
 					problem.Percentage = float32(p)
-					resultChan <- problem
+					problemsChan <- problem
 				})
-			wg.Done()
-		}(i)
+		}
+		problemsWaitGroup.Done()
+	}
+	const WORKERS = 8
+	problemsWaitGroup.Add(WORKERS)
+	for i := 0; i < WORKERS; i++ {
+		go getProblems()
 	}
 	go func() {
-		wg.Wait()
-		close(resultChan)
+		problemsWaitGroup.Wait()
+		close(problemsChan)
 	}()
-	var problems []problemInfo
-	for p := range resultChan {
-		problems = append(problems, p)
-	}
-	sort.Slice(problems, func(i, j int) bool {
-		return problems[i].TrueID < problems[j].TrueID
-	})
 
+	// Finally, collect all the problems.
+	problems := make(map[int]problemInfo)
+	defer spin("Downloading problem list")()
+	for p := range problemsChan {
+		problems[p.ID] = p
+	}
 	return problems
 }
 
 func getProblemInfo(pid int) problemInfo {
-	var problems []problemInfo
+	var problems map[int]problemInfo
 	if exists(problemsInfoFile) {
 		f, err := os.Open(problemsInfoFile)
 		if err != nil {
@@ -252,7 +277,7 @@ func getProblemInfo(pid int) problemInfo {
 			panic(err)
 		}
 	}
-	return problems[pid-100]
+	return problems[pid]
 }
 
 type loginInfo struct {
