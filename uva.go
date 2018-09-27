@@ -107,7 +107,6 @@ func main() {
 			}
 		}
 	}
-	getProblemInfo(900)
 	app.Run(os.Args)
 }
 
