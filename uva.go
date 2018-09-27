@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -132,6 +131,9 @@ func crawlProblemsInfo() []problemInfo {
 				panic(err)
 			}
 			doc, err := goquery.NewDocumentFromResponse(resp)
+			if err != nil {
+				panic(err)
+			}
 			doc.Find("#col3_content_wrapper > table:nth-child(4) > tbody > tr[class^=sectiontableentry]").
 				Each(func(i int, s *goquery.Selection) {
 					var problem problemInfo
@@ -167,40 +169,40 @@ func crawlProblemsInfo() []problemInfo {
 	return problems
 }
 
-func getProblemInfo(pid int) (problemInfo, error) {
+func getProblemInfo(pid int) problemInfo {
 	var problems []problemInfo
 	if exists(problemsInfoFile) {
 		f, err := os.Open(problemsInfoFile)
 		if err != nil {
-			return problemInfo{}, err
+			panic(err)
 		}
 		defer f.Close()
 		if err := gob.NewDecoder(f).Decode(&problems); err != nil {
-			return problemInfo{}, err
+			panic(err)
 		}
 	} else {
 		problems = crawlProblemsInfo()
 		f, err := os.Create(problemsInfoFile)
 		if err != nil {
-			return problemInfo{}, err
+			panic(err)
 		}
 		defer f.Close()
 		if err := gob.NewEncoder(f).Encode(problems); err != nil {
-			return problemInfo{}, err
+			panic(err)
 		}
 	}
-	return problems[pid-100], nil
+	return problems[pid-100]
 }
 
-func doLogin(username, password string) error {
+func doLogin(username, password string) {
 	defer spin("Signing in uva.onlinejudge.org")()
 	resp, err := http.Get(baseURL)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	doc, err := goquery.NewDocumentFromResponse(resp)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	form := url.Values{}
 	doc.Find("#mod_loginform > table > tbody > tr:nth-child(1) > td > input").
@@ -214,29 +216,28 @@ func doLogin(username, password string) error {
 	r, err := http.PostForm(
 		baseURL+"/index.php?option=com_comprofiler&task=login", form)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer r.Body.Close()
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	const failed = "Incorrect username or password"
 	if strings.Contains(string(body), failed) {
-		return errors.New(failed)
+		panic(failed)
 	}
-	return nil
 }
 
-func login() error {
+func login() {
 	if !exists(dataPath) {
 		if err := os.Mkdir(dataPath, 0755); err != nil {
-			return err
+			panic(err)
 		}
 	}
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
-		return err
+		panic(err)
 	}
 	http.DefaultClient.Jar = jar
 
@@ -248,14 +249,12 @@ func login() error {
 		password, err := terminal.ReadPassword(0)
 		fmt.Print("\n")
 		if err != nil {
-			return err
+			panic(err)
 		}
-		if err := doLogin(username, string(password)); err != nil {
-			return err
-		}
+		doLogin(username, string(password))
 		f, err := os.Create(userInfoFile)
 		if err != nil {
-			return err
+			panic(err)
 		}
 		defer f.Close()
 		user := userInfo{
@@ -263,29 +262,25 @@ func login() error {
 			LoginCookies: jar.Cookies(uvaURL),
 		}
 		if err := gob.NewEncoder(f).Encode(user); err != nil {
-			return err
+			panic(err)
 		}
 		fmt.Printf("Successfully login as %s%s%s\n", hiyellow, username, end)
 	} else {
 		f, err := os.Open(userInfoFile)
 		if err != nil {
-			return err
+			panic(err)
 		}
 		var user userInfo
 		if err := gob.NewDecoder(f).Decode(&user); err != nil {
-			return err
+			panic(err)
 		}
 		jar.SetCookies(uvaURL, user.LoginCookies)
 	}
-	return nil
 }
 
-func submit(problemID int, file string) (string, error) {
+func submit(problemID int, file string) string {
 	category := problemID / 100
-	info, err := getProblemInfo(problemID)
-	if err != nil {
-		return "", err
-	}
+	info := getProblemInfo(problemID)
 	problemID = info.TrueID
 	form := url.Values{
 		"problemid": {strconv.Itoa(problemID)},
@@ -294,11 +289,11 @@ func submit(problemID int, file string) (string, error) {
 	}
 	f, err := os.Open(file)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
 	code, err := ioutil.ReadAll(f)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
 	form.Set("code", string(code))
 
@@ -311,52 +306,46 @@ func submit(problemID int, file string) (string, error) {
 	resp, err := http.PostForm(baseURL+
 		"/index.php?option=com_onlinejudge&Itemid=8&page=save_submission", form)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
 	resp.Body.Close()
 	location := resp.Header["Location"][0]
 	sidRegex, _ := regexp.Compile(`Submission\+received\+with\+ID\+(\d+)`)
 	submitID := string(sidRegex.FindSubmatch([]byte(location))[1])
-	return submitID, nil
+	return submitID
 }
 
-func getResult(submitID string) (result, runTime string, _ error) {
+func getResult(submitID string) (result, runTime string) {
 	resp, err := http.Get(baseURL + "/index.php?option=com_onlinejudge&Itemid=9")
 	if err != nil {
-		return "", "", err
+		panic(err)
 	}
 	doc, err := goquery.NewDocumentFromResponse(resp)
 	if err != nil {
-		return "", "", err
+		panic(err)
 	}
 	row := doc.Find("#col3_content_wrapper > table:nth-child(3) > tbody > tr:nth-child(2) > td")
 	if row.First().Text() != submitID {
-		return "", "", errors.New("not latest submit")
+		panic("not latest submit")
 	}
-	return strings.TrimSpace(row.Eq(3).Text()), row.Eq(5).Text(), nil
+	return strings.TrimSpace(row.Eq(3).Text()), row.Eq(5).Text()
 }
 
-func submitAndShowResult(c *cli.Context) error {
+func submitAndShowResult(c *cli.Context) {
 	if c.NArg() == 0 {
-		return errors.New("filename required")
+		panic("filename required")
 	}
 	pid := c.Int("i")
 	if pid == 0 {
 		//
 	}
-	sid, err := submit(pid, c.Args().Get(0))
-	if err != nil {
-		return err
-	}
+	sid := submit(pid, c.Args().Get(0))
 	stop := spin("Waiting for judge result")
 	const judging = "In judge queue"
 	result := judging
 	var runTime string
 	for result == judging {
-		result, runTime, err = getResult(sid)
-		if err != nil {
-			return err
-		}
+		result, runTime = getResult(sid)
 		time.Sleep(1 * time.Second)
 	}
 	stop()
@@ -366,30 +355,32 @@ func submitAndShowResult(c *cli.Context) error {
 	} else {
 		fmt.Printf("%s✘ %s%s\n", red, result, end)
 	}
-	return nil
 }
 
-func user(c *cli.Context) error {
+func user(c *cli.Context) {
 	if c.Bool("l") {
-		return login()
+		login()
+		return
 	}
 	if c.Bool("L") {
-		return os.Remove(userInfoFile)
+		if err := os.Remove(userInfoFile); err != nil {
+			panic(err)
+		}
+		return
 	}
 
 	if !exists(userInfoFile) {
-		return errors.New("You are not logged in yet!")
+		panic("You are not logged in yet!")
 	}
 	f, err := os.Open(userInfoFile)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	var user userInfo
 	if err := gob.NewDecoder(f).Decode(&user); err != nil {
-		return err
+		panic(err)
 	}
 	fmt.Printf("You are now logged in as %s%s%s\n", hiyellow, user.Username, end)
-	return nil
 }
 
 type pdfInfo struct {
@@ -401,44 +392,41 @@ type pdfInfo struct {
 	sampleOutput string
 }
 
-func parsePdf(pid int) (pdfInfo, error) {
+func parsePdf(pid int) pdfInfo {
 	var pdf pdfInfo
 	if !exists(pdfPath) {
 		if err := os.Mkdir(pdfPath, 0755); err != nil {
-			return pdf, err
+			panic(err)
 		}
 	}
-	var err error
-	pdf.pinfo, err = getProblemInfo(pid)
-	if err != nil {
-		return pdf, err
-	}
+	pdf.pinfo = getProblemInfo(pid)
 	title := strings.Replace(pdf.pinfo.Title, " ", "-", -1)
 	pdfFile := fmt.Sprintf("%s%d.%s.pdf", pdfPath, pid, title)
 	var f *os.File
+	var err error
 
 	if exists(pdfFile) {
 		f, err = os.Open(pdfFile)
 		if err != nil {
-			return pdf, err
+			panic(err)
 		}
 	} else {
 		f, err = os.Create(pdfFile)
 		if err != nil {
-			return pdf, err
+			panic(err)
 		}
 		stop := spin("Downloading " + title)
 		resp, err := http.Get(fmt.Sprintf("%s/external/%d/p%d.pdf", baseURL, pid/100, pid))
 		if err != nil {
-			return pdf, err
+			panic(err)
 		}
 		if _, err := io.Copy(f, resp.Body); err != nil {
-			return pdf, err
+			panic(err)
 		}
 		resp.Body.Close()
 		stop()
 		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			return pdf, err
+			panic(err)
 		}
 	}
 	defer f.Close()
@@ -447,15 +435,15 @@ func parsePdf(pid int) (pdfInfo, error) {
 	cmd.Stdin = f
 	out, err := cmd.StdoutPipe()
 	if err != nil {
-		return pdf, err
+		panic(err)
 	}
 	defer out.Close()
 	if err := cmd.Start(); err != nil {
-		return pdf, err
+		panic(err)
 	}
 	bs, err := ioutil.ReadAll(out)
 	if err != nil {
-		return pdf, err
+		panic(err)
 	}
 	pdfRegex, _ := regexp.Compile("(?s)(.+)\nInput\n(.+)\nOutput\n(.+)\nSample Input\n(.+)\nSample Output\n(.+)")
 	res := pdfRegex.FindSubmatch(bs)[1:]
@@ -467,22 +455,19 @@ func parsePdf(pid int) (pdfInfo, error) {
 	pdf.output = indent(res[2])
 	pdf.sampleInput = indent(res[3])
 	pdf.sampleOutput = indent(res[4])
-	return pdf, nil
+	return pdf
 
 }
 
-func show(c *cli.Context) error {
+func show(c *cli.Context) {
 	if c.NArg() == 0 {
-		return errors.New("problem name or id required")
+		panic("problem name or id required")
 	}
 	pid, err := strconv.Atoi(c.Args().First()) // TODO: prohlem name
 	if err != nil {
-		return err
+		panic(err)
 	}
-	pdf, err := parsePdf(pid)
-	if err != nil {
-		return err
-	}
+	pdf := parsePdf(pid)
 
 	title := fmt.Sprintf("%d - %s", pid, pdf.pinfo.Title)
 	padding := strings.Repeat(" ", (108-len(title))/2)
@@ -511,8 +496,6 @@ func show(c *cli.Context) error {
 		fmt.Printf("%sSample Output%s\n", hiwhite, end)
 		fmt.Println(pdf.sampleOutput)
 	}
-
-	return nil
 }
 
 func main() {
@@ -558,10 +541,13 @@ func main() {
 			Action: submitAndShowResult,
 		},
 	}
-	if err := login(); err != nil {
-		fmt.Printf("%s%s%s\n", red, err, end)
-	}
-	if err := app.Run(os.Args); err != nil {
-		fmt.Printf("%s%s%s\n", red, err, end)
-	}
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("%s%s%s\n", red, err, end)
+			os.Exit(1)
+		}
+	}()
+
+	login() // TODO: don't call login() twice
+	app.Run(os.Args)
 }
