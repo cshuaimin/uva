@@ -277,7 +277,11 @@ func getProblemInfo(pid int) problemInfo {
 			panic(err)
 		}
 	}
-	return problems[pid]
+	r, ok := problems[pid]
+	if !ok {
+		panic("problem not found")
+	}
+	return r
 }
 
 type loginInfo struct {
