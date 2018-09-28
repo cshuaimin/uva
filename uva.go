@@ -214,7 +214,7 @@ func crawlProblemsInfo() map[int]problemInfo {
 			if err != nil {
 				panic(err)
 			}
-			doc.Find("#col3_content_wrapper > table:nth-child(4) > tbody > tr[class^=sectiontableentry]").
+			doc.Find("#col3_content_wrapper > table:nth-child(4) > tbody > tr[class!=sectiontableheader]").
 				Each(func(i int, s *goquery.Selection) {
 					var problem problemInfo
 					ele := s.Find("td:nth-child(3) > a")
