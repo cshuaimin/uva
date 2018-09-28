@@ -558,7 +558,7 @@ func show(c *cli.Context) {
 
 	fmt.Printf("%sStatistics%s\n", hiwhite, end)
 	fmt.Printf("       * Rate: %.1f %%\n", pdf.pinfo.Percentage)
-	accepted := humanize.Bytes(uint64(float32(pdf.pinfo.TotalSubmissions) * pdf.pinfo.Percentage))
+	accepted := humanize.Bytes(uint64(float32(pdf.pinfo.TotalSubmissions) * pdf.pinfo.Percentage / 100))
 	fmt.Printf("       * Total Accepted: %s\n", accepted[:len(accepted)-1])
 	submissions := humanize.Bytes(uint64(pdf.pinfo.TotalSubmissions))
 	fmt.Printf("       * Total Submissions: %s\n\n", submissions[:len(submissions)-1])
