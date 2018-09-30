@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -26,6 +28,7 @@ import (
 var (
 	dataPath         = os.Getenv("HOME") + "/.local/share/uva-cli/"
 	pdfPath          = dataPath + "pdf/"
+	testDataPath     = dataPath + "test-data"
 	loginInfoFile    = dataPath + "login-info.gob"
 	problemsInfoFile = dataPath + "problems-info.gob"
 	uvaURL, _        = url.Parse(baseURL)
@@ -40,6 +43,7 @@ const (
 	gray     = "\033[1;30m"
 	hiyellow = "\033[1;33m"
 	hiwhite  = "\033[1;37m"
+	magenta  = "\033[1;35m"
 	end      = "\033[0m"
 )
 
@@ -91,7 +95,13 @@ func main() {
 			Action: submitAndShowResult,
 			Before: loadCookies,
 		},
+		{
+			Name:   "test",
+			Usage:  "test code locally",
+			Action: testProgram,
+		},
 	}
+
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Printf("%s%s%s\n", red, err, end)
@@ -100,7 +110,7 @@ func main() {
 	}()
 
 	// make data directories
-	for _, path := range []string{dataPath, pdfPath} {
+	for _, path := range []string{dataPath, pdfPath, testDataPath} {
 		if !exists(path) {
 			if err := os.Mkdir(path, 0755); err != nil {
 				panic(err)
@@ -430,6 +440,41 @@ func getResult(submitID string) (result, runTime string) {
 	return strings.TrimSpace(row.Eq(3).Text()), row.Eq(5).Text()
 }
 
+const (
+	ansic = iota + 1
+	java
+	cpp
+	pascal
+	cpp11
+	python3
+)
+
+func parseFilename(s string) (pid int, name string, lang int) {
+	regex := regexp.MustCompile(`(\d+)\.([\w+-_]+)\.(\w+)`)
+	match := regex.FindSubmatch([]byte(s))
+	if len(match) != 4 {
+		panic("filename pattern does not match")
+	}
+	pid, err := strconv.Atoi(string(match[1]))
+	if err != nil {
+		panic(err)
+	}
+	name = string(match[2])
+	switch string(match[3]) {
+	case "c":
+		lang = ansic
+	case "java":
+		lang = java
+	case "cc", "cpp":
+		lang = cpp11
+	case "pas":
+		lang = pascal
+	case "py":
+		lang = python3
+	}
+	return
+}
+
 func submitAndShowResult(c *cli.Context) {
 	if c.NArg() == 0 {
 		panic("filename required")
@@ -579,4 +624,143 @@ func show(c *cli.Context) {
 		fmt.Printf("%sSample Output%s\n", hiwhite, end)
 		fmt.Println(pdf.sampleOutput)
 	}
+}
+
+func crawlTestData(pid int) (string, string) {
+	defer spin("Downloading test cases")()
+	problemHomePage := fmt.Sprintf("https://www.udebug.com/UVa/%d", pid)
+	doc, err := goquery.NewDocument(problemHomePage)
+	if err != nil {
+		panic(err)
+	}
+	inputID, ok := doc.Find("a.input_desc").Attr("data-id")
+	if !ok {
+		panic("no input found")
+	}
+	resp, err := http.PostForm(
+		"https://www.udebug.com/udebug-custom-get-selected-input-ajax",
+		url.Values{"input_nid": {inputID}},
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err != nil {
+		panic(err)
+	}
+	input := m["input_value"]
+	form := url.Values{}
+	doc.Find("#udebug-custom-problem-view-input-output-form input").Each(func(i int, s *goquery.Selection) {
+		form.Set(s.AttrOr("name", ""), s.AttrOr("value", ""))
+	})
+	form.Set("input_data", input)
+	resp, err = http.PostForm(problemHomePage, form)
+	if err != nil {
+		panic(err)
+	}
+	doc, err = goquery.NewDocumentFromResponse(resp)
+	if err != nil {
+		panic(err)
+	}
+	return input, doc.Find("#edit-output-data").Text()
+}
+
+func getTestData(pid int) (input string, output string) {
+	testDataFile := fmt.Sprintf("%s/%d.gob", testDataPath, pid)
+	if exists(testDataFile) {
+		f, err := os.Open(testDataFile)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+		dec := gob.NewDecoder(f)
+		if err = dec.Decode(&input); err != nil {
+			panic(err)
+		}
+		if err = dec.Decode(&output); err != nil {
+			panic(err)
+		}
+	} else {
+		input, output = crawlTestData(pid)
+		f, err := os.Create(testDataFile)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+		enc := gob.NewEncoder(f)
+		if err = enc.Encode(input); err != nil {
+			panic(err)
+		}
+		if err = enc.Encode(output); err != nil {
+			panic(err)
+		}
+	}
+	return
+}
+
+func testProgram(c *cli.Context) {
+	if c.NArg() == 0 {
+		panic("filename required")
+	}
+	file := c.Args().First()
+	pid, name, lang := parseFilename(file)
+	binFilename := fmt.Sprintf("%d.%s", pid, name)
+
+	// compile source code
+	cmd := exec.Command("g++", "-Wall", "-fdiagnostics-color=always", "-o", binFilename, file)
+	stop := spin("Compiling")
+	out, err := cmd.CombinedOutput()
+	stop()
+	if err != nil {
+		panic(err)
+	}
+	if len(out) != 0 {
+		fmt.Printf("%s✘ Warnings%s\n", magenta, end)
+		fmt.Print(string(out))
+	}
+
+	// get test case from udebug.com
+	input, output := getTestData(pid)
+
+	// run the program with test case
+	cmd = exec.Command("./" + binFilename)
+	tmpfile, err := ioutil.TempFile("", binFilename+".output-")
+	if err != nil {
+		panic(err)
+	}
+	defer os.Remove(tmpfile.Name())
+	cmd.Stdout = tmpfile
+	cmd.Stdin = strings.NewReader(input)
+	stop = spin("running tests")
+	start := time.Now()
+	if err = cmd.Run(); err != nil {
+		panic(err)
+	}
+	runTime := time.Since(start)
+	stop()
+
+	// compare the output with the answer
+	cmd = exec.Command("diff", "-Z", "--color=always", tmpfile.Name(), "-")
+	cmd.Stdin = strings.NewReader(output)
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	err = cmd.Run()
+	if err != nil {
+		if v, ok := err.(*exec.ExitError); !ok {
+			panic(v)
+		}
+	}
+	diff := string(buf.Bytes())
+	if len(diff) != 0 {
+		fmt.Printf("%s✘ Wrong answer%s\n", red, end)
+		fmt.Print(diff)
+	} else {
+		fmt.Printf("%s✔ Accepted (%.2fs)%s\n", cyan, float32(runTime)/float32(time.Second), end)
+	}
+	lang = lang
 }
