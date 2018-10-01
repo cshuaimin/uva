@@ -18,15 +18,6 @@ import (
 	"github.com/urfave/cli"
 )
 
-const (
-	ansic = iota + 1
-	java
-	cpp
-	pascal
-	cpp11
-	python3
-)
-
 func submit(problemID int, file string) string {
 	category := problemID / 100
 	info := getProblemInfo(problemID)

@@ -12,6 +12,14 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
+var (
+	dataPath         = os.Getenv("HOME") + "/.local/share/uva-cli/"
+	pdfPath          = dataPath + "pdf/"
+	testDataPath     = dataPath + "test-data"
+	loginInfoFile    = dataPath + "login-info.gob"
+	problemsInfoFile = dataPath + "problems-info.gob"
+)
+
 func getProblemInfo(pid int) problemInfo {
 	var problems map[int]problemInfo
 	if exists(problemsInfoFile) {

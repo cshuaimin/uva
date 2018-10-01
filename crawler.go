@@ -21,6 +21,8 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
+const baseURL = "https://uva.onlinejudge.org"
+
 var uvaURL, _ = url.Parse(baseURL)
 
 type problemInfo struct {

@@ -6,6 +6,15 @@ import (
 	"strconv"
 )
 
+const (
+	ansic = iota + 1
+	java
+	cpp
+	pascal
+	cpp11
+	python3
+)
+
 func exists(file string) bool {
 	_, err := os.Stat(file)
 	return !os.IsNotExist(err)
