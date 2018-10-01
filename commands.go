@@ -18,6 +18,70 @@ import (
 	"github.com/urfave/cli"
 )
 
+func user(c *cli.Context) {
+	if c.Bool("l") {
+		login()
+	} else if c.Bool("L") {
+		if err := os.Remove(loginInfoFile); err != nil {
+			panic(err)
+		}
+	} else {
+		fmt.Println("You are now logged in as", colored(loadLoginInfo().Username, yellow, 1))
+	}
+}
+
+func show(c *cli.Context) {
+	if c.NArg() == 0 {
+		panic("problem name or id required")
+	}
+	pid, err := strconv.Atoi(c.Args().First())
+	if err != nil {
+		panic(err)
+	}
+
+	info := getProblemInfo(pid)
+	title := fmt.Sprintf("%d - %s", pid, info.Title)
+	padding := strings.Repeat(" ", (108-len(title))/2)
+	cprintf(white, 1, "%s%s\n\n", padding, title)
+
+	const indent = "       "
+	cprintf(white, 1, "Statistics\n")
+	fmt.Printf(indent+"* Rate: %.1f %%\n", info.Percentage)
+	accepted := humanize.Bytes(uint64(float32(info.TotalSubmissions) * info.Percentage / 100))
+	fmt.Printf(indent+"* Total Accepted: %s\n", accepted[:len(accepted)-1])
+	submissions := humanize.Bytes(uint64(info.TotalSubmissions))
+	fmt.Printf(indent+"* Total Submissions: %s\n\n", submissions[:len(submissions)-1])
+
+	cprintf(white, 1, "Description\n")
+	description := getProblemDescription(pid, info.Title)
+	// indentation
+	description = strings.Replace(description, "\n", "\n"+indent, -1)
+	for _, s := range []string{"Input", "Output", "Sample Input", "Sample Output"} {
+		description = strings.Replace(description, indent+s, colored(s, white, 1), 1)
+	}
+	description = indent + strings.TrimSpace(description)
+	fmt.Println(description)
+}
+
+func touch(c *cli.Context) {
+	if c.NArg() == 0 {
+		panic("problem ID required")
+	}
+	pid, err := strconv.Atoi(c.Args().First())
+	if err != nil {
+		panic(err)
+	}
+	title := getProblemInfo(pid).Title
+	title = strings.Replace(title, " ", "-", -1)
+	name := fmt.Sprintf("%d.%s.%s", pid, title, c.String("lang"))
+	f, err := os.Create(name)
+	if err != nil {
+		panic(err)
+	}
+	f.Close()
+	fmt.Printf("Source code: %s\n", colored(name, yellow, underline))
+}
+
 func submit(problemID int, file string, lang int) string {
 	category := problemID / 100
 	info := getProblemInfo(problemID)
@@ -93,51 +157,6 @@ func submitAndShowResult(c *cli.Context) {
 	} else {
 		cprintf(red, bold, "%s %s\n", no, result)
 	}
-}
-
-func user(c *cli.Context) {
-	if c.Bool("l") {
-		login()
-	} else if c.Bool("L") {
-		if err := os.Remove(loginInfoFile); err != nil {
-			panic(err)
-		}
-	} else {
-		fmt.Println("You are now logged in as", colored(loadLoginInfo().Username, yellow, 1))
-	}
-}
-
-func show(c *cli.Context) {
-	if c.NArg() == 0 {
-		panic("problem name or id required")
-	}
-	pid, err := strconv.Atoi(c.Args().First())
-	if err != nil {
-		panic(err)
-	}
-
-	info := getProblemInfo(pid)
-	title := fmt.Sprintf("%d - %s", pid, info.Title)
-	padding := strings.Repeat(" ", (108-len(title))/2)
-	cprintf(white, 1, "%s%s\n\n", padding, title)
-
-	const indent = "       "
-	cprintf(white, 1, "Statistics\n")
-	fmt.Printf(indent+"* Rate: %.1f %%\n", info.Percentage)
-	accepted := humanize.Bytes(uint64(float32(info.TotalSubmissions) * info.Percentage / 100))
-	fmt.Printf(indent+"* Total Accepted: %s\n", accepted[:len(accepted)-1])
-	submissions := humanize.Bytes(uint64(info.TotalSubmissions))
-	fmt.Printf(indent+"* Total Submissions: %s\n\n", submissions[:len(submissions)-1])
-
-	cprintf(white, 1, "Description\n")
-	description := getProblemDescription(pid, info.Title)
-	// indentation
-	description = strings.Replace(description, "\n", "\n"+indent, -1)
-	for _, s := range []string{"Input", "Output", "Sample Input", "Sample Output"} {
-		description = strings.Replace(description, indent+s, colored(s, white, 1), 1)
-	}
-	description = indent + strings.TrimSpace(description)
-	fmt.Println(description)
 }
 
 func testProgram(c *cli.Context) {
