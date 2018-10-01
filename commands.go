@@ -40,6 +40,7 @@ func show(c *cli.Context) {
 	}
 
 	info := getProblemInfo(pid)
+	description := getProblemDescription(pid, info.Title)
 	title := fmt.Sprintf("%d - %s", pid, info.Title)
 	padding := strings.Repeat(" ", (108-len(title))/2)
 	cprintf(white, 1, "%s%s\n\n", padding, title)
@@ -53,7 +54,6 @@ func show(c *cli.Context) {
 	fmt.Printf(indent+"* Total Submissions: %s\n\n", submissions[:len(submissions)-1])
 
 	cprintf(white, 1, "Description\n")
-	description := getProblemDescription(pid, info.Title)
 	// indentation
 	description = strings.Replace(description, "\n", "\n"+indent, -1)
 	for _, s := range []string{"Input", "Output", "Sample Input", "Sample Output"} {
