@@ -63,7 +63,7 @@ func main() {
 		{
 			Name:      "test",
 			Usage:     "test code locally",
-			UsageText: "uva submit FILE",
+			UsageText: "uva test FILE",
 			Action:    testProgram,
 		},
 	}
