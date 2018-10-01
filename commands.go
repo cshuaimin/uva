@@ -18,14 +18,14 @@ import (
 	"github.com/urfave/cli"
 )
 
-func submit(problemID int, file string) string {
+func submit(problemID int, file string, lang int) string {
 	category := problemID / 100
 	info := getProblemInfo(problemID)
 	problemID = info.TrueID
 	form := url.Values{
 		"problemid": {strconv.Itoa(problemID)},
 		"category":  {strconv.Itoa(category)},
-		"language":  {"3"}, // TODO
+		"language":  {strconv.Itoa(lang)},
 	}
 	f, err := os.Open(file)
 	if err != nil {
@@ -75,11 +75,9 @@ func submitAndShowResult(c *cli.Context) {
 	if c.NArg() == 0 {
 		panic("filename required")
 	}
-	pid := c.Int("i")
-	if pid == 0 {
-		//
-	}
-	sid := submit(pid, c.Args().Get(0))
+	file := c.Args().First()
+	pid, _, lang := parseFilename(file)
+	sid := submit(pid, file, lang)
 	stop := spin("Waiting for judge result")
 	const judging = "In judge queue"
 	result := judging
@@ -113,7 +111,7 @@ func show(c *cli.Context) {
 	if c.NArg() == 0 {
 		panic("problem name or id required")
 	}
-	pid, err := strconv.Atoi(c.Args().First()) // TODO: problem name
+	pid, err := strconv.Atoi(c.Args().First())
 	if err != nil {
 		panic(err)
 	}

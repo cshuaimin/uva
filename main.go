@@ -34,20 +34,14 @@ func main() {
 		},
 		{
 			Name:   "show",
-			Usage:  "show problem by name or id",
+			Usage:  "show problem by id",
 			Flags:  []cli.Flag{},
 			Action: show,
 			Before: loadCookies,
 		},
 		{
-			Name:  "submit",
-			Usage: "submit code",
-			Flags: []cli.Flag{
-				cli.IntFlag{
-					Name:  "i",
-					Usage: "problem ID",
-				},
-			},
+			Name:   "submit",
+			Usage:  "submit code",
 			Action: submitAndShowResult,
 			Before: loadCookies,
 		},
