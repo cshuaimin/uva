@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/urfave/cli"
@@ -34,14 +33,9 @@ func main() {
 			Action: user,
 		},
 		{
-			Name:  "show",
-			Usage: "show problem by name or id",
-			Flags: []cli.Flag{
-				cli.BoolFlag{
-					Name:  "p",
-					Usage: "show input/output",
-				},
-			},
+			Name:   "show",
+			Usage:  "show problem by name or id",
+			Flags:  []cli.Flag{},
 			Action: show,
 			Before: loadCookies,
 		},
@@ -66,7 +60,7 @@ func main() {
 
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Printf("%s%s%s\n", red, err, end)
+			cprintf(red, 0, "%s\n", err)
 			os.Exit(1)
 		}
 	}()

@@ -4,11 +4,13 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -18,6 +20,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/publicsuffix"
 )
+
+var uvaURL, _ = url.Parse(baseURL)
 
 type problemInfo struct {
 	Title            string
@@ -34,7 +38,7 @@ func crawlProblemsInfo() map[int]problemInfo {
 	getVolumes := func(category int) {
 		defer func() {
 			if err := recover(); err != nil {
-				fmt.Printf("%s%s%s\n", red, err, end)
+				cprintf(red, 0, "%s\n", err)
 				os.Exit(1)
 			}
 		}()
@@ -76,7 +80,7 @@ func crawlProblemsInfo() map[int]problemInfo {
 	getProblems := func() {
 		defer func() {
 			if err := recover(); err != nil {
-				fmt.Printf("%s%s%s\n", red, err, end)
+				cprintf(red, 0, "%s\n", err)
 				os.Exit(1)
 			}
 		}()
@@ -242,5 +246,22 @@ func login() {
 		panic(err)
 	}
 	stop()
-	fmt.Printf("Successfully login as %s%s%s\n", hiyellow, username, end)
+	fmt.Println("Successfully login as", colored(username, yellow, 1))
+}
+
+func downloadProblemPdf(pid int, filename string) {
+	defer spin("Downloading " + path.Base(filename))()
+	f, err := os.Create(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	resp, err := http.Get(fmt.Sprintf("%s/external/%d/p%d.pdf", baseURL, pid/100, pid))
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		panic(err)
+	}
 }

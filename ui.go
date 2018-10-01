@@ -7,26 +7,46 @@ import (
 )
 
 const (
-	baseURL  = "https://uva.onlinejudge.org"
-	red      = "\033[0;31m"
-	green    = "\033[0;32m"
-	cyan     = "\033[1;36m"
-	yellow   = "\033[0;33m"
-	gray     = "\033[1;30m"
-	hiyellow = "\033[1;33m"
-	hiwhite  = "\033[1;37m"
-	magenta  = "\033[1;35m"
-	end      = "\033[0m"
+	black = iota + 30
+	red
+	green
+	yellow
+	blue
+	magenta
+	cyan
+	white
 )
+
+func colored(s string, color int, highlight int) string {
+	return fmt.Sprintf("\033[%d;%dm%s\033[0m", highlight, color, s)
+}
+
+func cprintf(color int, highlight int, format string, a ...interface{}) {
+	fmt.Printf(colored(format, color, highlight), a...)
+}
+
+func warning(format string, a ...interface{}) {
+	cprintf(magenta, 1, "✘ "+format, a...)
+}
+
+func failed(format string, a ...interface{}) {
+	cprintf(red, 1, "✘ "+format, a...)
+}
+
+func success(format string, a ...interface{}) {
+	cprintf(cyan, 1, "✔ "+format, a...)
+}
 
 func spin(text string) func() {
 	dots := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	for i := 0; i < len(dots); i++ {
-		dots[i] = fmt.Sprintf("%s%s%s", green, dots[i], end)
+		dots[i] = colored(dots[i], green, 0)
 	}
-	text = fmt.Sprintf("%s%s%s", gray, text, end)
+	overlay := strings.Repeat(" ", len(text)+2)
+	text = colored(text, black, 1)
 	stop := make(chan struct{})
 	done := make(chan struct{})
+
 	fmt.Printf("%s %s", dots[0], text)
 	go func() {
 		for i := 1; ; i++ {
@@ -34,7 +54,7 @@ func spin(text string) func() {
 			case <-time.After(100 * time.Millisecond):
 				fmt.Printf("\r%s %s", dots[i%len(dots)], text)
 			case <-stop:
-				fmt.Printf("\r%s\r", strings.Repeat(" ", len(text)+2))
+				fmt.Printf("\r%s\r", overlay)
 				done <- struct{}{}
 				return
 			}

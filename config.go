@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/url"
 	"os"
 )
 
@@ -11,5 +10,6 @@ var (
 	testDataPath     = dataPath + "test-data"
 	loginInfoFile    = dataPath + "login-info.gob"
 	problemsInfoFile = dataPath + "problems-info.gob"
-	uvaURL, _        = url.Parse(baseURL)
 )
+
+const baseURL = "https://uva.onlinejudge.org"

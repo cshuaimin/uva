@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+	"os/exec"
+	"strings"
 
 	"golang.org/x/net/publicsuffix"
 )
@@ -93,4 +95,17 @@ func loadLoginInfo() loginInfo {
 	jar.SetCookies(uvaURL, info.Cookies)
 	http.DefaultClient.Jar = jar
 	return info
+}
+
+func getProblemDescription(pid int, title string) string {
+	title = strings.Replace(title, " ", "-", -1)
+	pdfFile := fmt.Sprintf("%s%d.%s.pdf", pdfPath, pid, title)
+	if !exists(pdfFile) {
+		downloadProblemPdf(pid, pdfFile)
+	}
+	pdf, err := exec.Command("pdftotext", pdfFile, "-").Output()
+	if err != nil {
+		panic(err)
+	}
+	return string(pdf)
 }
