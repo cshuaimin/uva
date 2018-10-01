@@ -15,26 +15,20 @@ const (
 	magenta
 	cyan
 	white
+
+	bold      = 1
+	underline = 4
+
+	yes = "✔"
+	no  = "✘"
 )
 
-func colored(s string, color int, highlight int) string {
-	return fmt.Sprintf("\033[%d;%dm%s\033[0m", highlight, color, s)
+func colored(s string, color int, attr int) string {
+	return fmt.Sprintf("\033[%d;%dm%s\033[0m", attr, color, s)
 }
 
-func cprintf(color int, highlight int, format string, a ...interface{}) {
-	fmt.Printf(colored(format, color, highlight), a...)
-}
-
-func warning(format string, a ...interface{}) {
-	cprintf(magenta, 1, "✘ "+format, a...)
-}
-
-func failed(format string, a ...interface{}) {
-	cprintf(red, 1, "✘ "+format, a...)
-}
-
-func success(format string, a ...interface{}) {
-	cprintf(cyan, 1, "✔ "+format, a...)
+func cprintf(color int, attr int, format string, a ...interface{}) {
+	fmt.Printf(colored(format, color, attr), a...)
 }
 
 func spin(text string) func() {

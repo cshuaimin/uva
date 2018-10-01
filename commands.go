@@ -89,9 +89,9 @@ func submitAndShowResult(c *cli.Context) {
 	stop()
 
 	if result == "Accepted" {
-		success("Accepted (%ss)", runTime)
+		cprintf(cyan, bold, yes+" Accepted (%ss)\n", runTime)
 	} else {
-		failed(result)
+		cprintf(red, bold, "%s %s\n", no, result)
 	}
 }
 
@@ -157,7 +157,7 @@ func testProgram(c *cli.Context) {
 		panic(err)
 	}
 	if len(out) != 0 {
-		warning("Warnings")
+		cprintf(magenta, bold, no+" Warnings\n")
 		fmt.Print(string(out))
 	}
 
@@ -173,7 +173,7 @@ func testProgram(c *cli.Context) {
 	defer os.Remove(tmpfile.Name())
 	cmd.Stdout = tmpfile
 	cmd.Stdin = strings.NewReader(input)
-	stop = spin("running tests")
+	stop = spin("Running tests")
 	start := time.Now()
 	if err = cmd.Run(); err != nil {
 		panic(err)
@@ -195,10 +195,10 @@ func testProgram(c *cli.Context) {
 	}
 	diff := string(buf.Bytes())
 	if len(diff) != 0 {
-		failed("Wrong answer")
+		cprintf(red, bold, no+" Wrong answer\n")
 		fmt.Print(diff)
 	} else {
-		success("Accepted (%ss)\n", float32(runTime)/float32(time.Second))
+		cprintf(cyan, bold, yes+" Accepted (%.3fs)\n", float32(runTime)/float32(time.Second))
 	}
 	lang = lang
 }
