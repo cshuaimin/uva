@@ -176,13 +176,12 @@ func testProgram(c *cli.Context) {
 		panic(err)
 	}
 	if len(out) != 0 {
-		cprintf(magenta, bold, no+" Warnings\n")
+		cprintf(magenta, bold, no+" Warnings\n\n")
 		fmt.Print(string(out))
 	}
 
 	// get test case from udebug.com
 	input, output := getTestData(pid)
-
 	// run the program with test case
 	cmd = exec.Command("./" + binFilename)
 	tmpfile, err := ioutil.TempFile("", binFilename+".output-")
@@ -191,7 +190,11 @@ func testProgram(c *cli.Context) {
 	}
 	defer os.Remove(tmpfile.Name())
 	cmd.Stdout = tmpfile
-	cmd.Stdin = strings.NewReader(input)
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+		cprintf(green, 0, "Input data:\n")
+		fmt.Println(input)
+	}
 	stop = spin("Running tests")
 	start := time.Now()
 	if err = cmd.Run(); err != nil {

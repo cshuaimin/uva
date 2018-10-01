@@ -136,40 +136,46 @@ func crawlProblemsInfo() map[int]problemInfo {
 	return problems
 }
 
-func crawlTestData(pid int) (string, string) {
+func crawlTestData(pid int) (input string, output string) {
 	defer spin("Downloading test cases")()
 	problemHomePage := fmt.Sprintf("https://www.udebug.com/UVa/%d", pid)
 	doc, err := goquery.NewDocument(problemHomePage)
 	if err != nil {
 		panic(err)
 	}
-	inputID, ok := doc.Find("a.input_desc").Attr("data-id")
-	if !ok {
-		panic("no input found")
+	sel := doc.Find("a.input_desc")
+	// some problems has no input
+	if sel.Length() != 0 {
+		inputID, ok := sel.Attr("data-id")
+		if !ok {
+			panic("no input found")
+		}
+		resp, err := http.PostForm(
+			"https://www.udebug.com/udebug-custom-get-selected-input-ajax",
+			url.Values{"input_nid": {inputID}},
+		)
+		if err != nil {
+			panic(err)
+		}
+		defer resp.Body.Close()
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			panic(err)
+		}
+		var m map[string]string
+		if err := json.Unmarshal(data, &m); err != nil {
+			panic(err)
+		}
+		input = m["input_value"]
 	}
-	resp, err := http.PostForm(
-		"https://www.udebug.com/udebug-custom-get-selected-input-ajax",
-		url.Values{"input_nid": {inputID}},
-	)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		panic(err)
-	}
-	var m map[string]string
-	if err := json.Unmarshal(data, &m); err != nil {
-		panic(err)
-	}
-	input := m["input_value"]
 	form := url.Values{}
 	doc.Find("#udebug-custom-problem-view-input-output-form input").Each(func(i int, s *goquery.Selection) {
 		form.Set(s.AttrOr("name", ""), s.AttrOr("value", ""))
 	})
-	form.Set("input_data", input)
-	resp, err = http.PostForm(problemHomePage, form)
+	if input != "" {
+		form.Set("input_data", input)
+	}
+	resp, err := http.PostForm(problemHomePage, form)
 	if err != nil {
 		panic(err)
 	}
@@ -177,7 +183,8 @@ func crawlTestData(pid int) (string, string) {
 	if err != nil {
 		panic(err)
 	}
-	return input, doc.Find("#edit-output-data").Text()
+	output = doc.Find("#edit-output-data").Text()
+	return
 }
 
 type loginInfo struct {
