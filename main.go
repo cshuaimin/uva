@@ -37,8 +37,14 @@ func main() {
 			Name:      "show",
 			Usage:     "show problem by id",
 			UsageText: "uva show ID",
-			Action:    show,
-			Before:    loadCookies,
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "g",
+					Usage: "open the pdf in a GUI viewer",
+				},
+			},
+			Action: show,
+			Before: loadCookies,
 		},
 		{
 			Name:      "touch",

@@ -30,18 +30,13 @@ func user(c *cli.Context) {
 	}
 }
 
-func show(c *cli.Context) {
-	if c.NArg() == 0 {
-		panic("problem name or id required")
-	}
-	pid, err := strconv.Atoi(c.Args().First())
+func printPdf(file string, info problemInfo) {
+	pdf, err := exec.Command("pdftotext", file, "-").Output()
 	if err != nil {
 		panic(err)
 	}
-
-	info := getProblemInfo(pid)
-	description := getProblemDescription(pid, info.Title)
-	title := fmt.Sprintf("%d - %s", pid, info.Title)
+	description := string(pdf)
+	title := fmt.Sprintf("%d - %s", info.ID, info.Title)
 	padding := strings.Repeat(" ", (108-len(title))/2)
 	cprintf(white, 1, "%s%s\n\n", padding, title)
 
@@ -61,6 +56,30 @@ func show(c *cli.Context) {
 	}
 	description = indent + strings.TrimSpace(description)
 	fmt.Println(description)
+}
+
+func show(c *cli.Context) {
+	if c.NArg() == 0 {
+		panic("problem id required")
+	}
+	pid, err := strconv.Atoi(c.Args().First())
+	if err != nil {
+		panic(err)
+	}
+	info := getProblemInfo(pid)
+	slug := strings.Replace(info.Title, " ", "-", -1)
+	pdfFile := fmt.Sprintf("%s%d.%s.pdf", pdfPath, pid, slug)
+	if !exists(pdfFile) {
+		downloadProblemPdf(pid, pdfFile)
+	}
+
+	if c.Bool("g") {
+		if err := exec.Command("evince", pdfFile).Run(); err != nil {
+			panic(err)
+		}
+	} else {
+		printPdf(pdfFile, info)
+	}
 }
 
 func touch(c *cli.Context) {
