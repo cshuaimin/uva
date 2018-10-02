@@ -67,8 +67,7 @@ func show(c *cli.Context) {
 		panic(err)
 	}
 	info := getProblemInfo(pid)
-	slug := strings.Replace(info.Title, " ", "-", -1)
-	pdfFile := fmt.Sprintf("%s%d.%s.pdf", pdfPath, pid, slug)
+	pdfFile := pdfPath + info.getFilename("pdf")
 	if !exists(pdfFile) {
 		downloadProblemPdf(pid, pdfFile)
 	}
@@ -90,9 +89,7 @@ func touch(c *cli.Context) {
 	if err != nil {
 		panic(err)
 	}
-	title := getProblemInfo(pid).Title
-	title = strings.Replace(title, " ", "-", -1)
-	name := fmt.Sprintf("%d.%s.%s", pid, title, c.String("lang"))
+	name := getProblemInfo(pid).getFilename(c.String("lang"))
 	f, err := os.Create(name)
 	if err != nil {
 		panic(err)

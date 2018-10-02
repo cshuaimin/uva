@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -44,4 +46,9 @@ func parseFilename(s string) (pid int, name string, lang int) {
 		lang = python3
 	}
 	return
+}
+
+func (info problemInfo) getFilename(ext string) string {
+	slug := strings.Replace(info.Title, " ", "-", -1)
+	return fmt.Sprintf("%d.%s.%s", info.ID, slug, ext)
 }

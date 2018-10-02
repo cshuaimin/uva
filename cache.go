@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/gob"
-	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
@@ -13,7 +12,7 @@ import (
 var (
 	dataPath         = os.Getenv("HOME") + "/.local/share/uva-cli/"
 	pdfPath          = dataPath + "pdf/"
-	testDataPath     = dataPath + "test-data"
+	testDataPath     = dataPath + "test-data/"
 	loginInfoFile    = dataPath + "login-info.gob"
 	problemsInfoFile = dataPath + "problems-info.gob"
 )
@@ -48,7 +47,7 @@ func getProblemInfo(pid int) problemInfo {
 }
 
 func getTestData(pid int) (input string, output string) {
-	testDataFile := fmt.Sprintf("%s/%d.gob", testDataPath, pid)
+	testDataFile := testDataPath + getProblemInfo(pid).getFilename("gob")
 	if exists(testDataFile) {
 		f, err := os.Open(testDataFile)
 		if err != nil {
