@@ -1,0 +1,14 @@
+cc:
+  compile: [g++, -Wall, -fdiagnostics-color=always, -O2, '{}']
+  run: [./a.out]
+
+c:
+  compile: [gcc, -Wall, -fdiagnostics-color=always, -O2, '{}']
+  run: [./a.out]
+
+java:
+  compile: [javac, '{}']
+  run: [java, Main]
+
+py:
+  run: [python3, '{}']

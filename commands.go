@@ -156,7 +156,20 @@ func submitAndShowResult(c *cli.Context) {
 		panic("filename required")
 	}
 	file := c.Args().First()
-	pid, _, lang := parseFilename(file)
+	pid, _, ext := parseFilename(file)
+	var lang int
+	switch ext {
+	case "c":
+		lang = ansic
+	case "java":
+		lang = java
+	case "cc", "cpp":
+		lang = cpp
+	case "pas":
+		lang = pascal
+	case "py":
+		lang = python3
+	}
 	sid := submit(pid, file, lang)
 	stop := spin("Waiting for judge result")
 	const judging = "In judge queue"
@@ -180,27 +193,32 @@ func testProgram(c *cli.Context) {
 		panic("filename required")
 	}
 	file := c.Args().First()
-	pid, name, lang := parseFilename(file)
-	binFilename := fmt.Sprintf("%d.%s", pid, name)
+	pid, _, ext := parseFilename(file)
 
 	// compile source code
-	cmd := exec.Command("g++", "-Wall", "-fdiagnostics-color=always", "-o", binFilename, file)
-	stop := spin("Compiling")
-	out, err := cmd.CombinedOutput()
-	stop()
-	if err != nil {
-		panic(err)
-	}
-	if len(out) != 0 {
-		cprintf(magenta, bold, no+" Warnings\n\n")
-		fmt.Print(string(out))
+	compile, run := getTestCmd(ext, file)
+	var cmd *exec.Cmd
+	var stop func()
+	// for script languages
+	if len(compile) > 0 {
+		cmd = exec.Command(compile[0], compile[1:]...)
+		stop = spin("Compiling")
+		out, err := cmd.CombinedOutput()
+		stop()
+		if err != nil {
+			panic(err)
+		}
+		if len(out) != 0 {
+			cprintf(magenta, bold, no+" Warnings\n\n")
+			fmt.Print(string(out))
+		}
 	}
 
 	// get test case from udebug.com
 	input, output := getTestData(pid)
 	// run the program with test case
-	cmd = exec.Command("./" + binFilename)
-	tmpfile, err := ioutil.TempFile("", binFilename+".output-")
+	cmd = exec.Command(run[0], run[1:]...)
+	tmpfile, err := ioutil.TempFile("", "uva-*.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -238,5 +256,4 @@ func testProgram(c *cli.Context) {
 	} else {
 		cprintf(cyan, bold, yes+" Accepted (%.3fs)\n", float32(runTime)/float32(time.Second))
 	}
-	lang = lang
 }
