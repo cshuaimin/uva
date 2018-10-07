@@ -224,8 +224,12 @@ func testProgram(c *cli.Context) {
 	}
 	defer os.Remove(tmpfile.Name())
 	cmd.Stdout = tmpfile
-	if input != "" {
+	if input == "" {
+		input = "<No input>"
+	} else {
 		cmd.Stdin = strings.NewReader(input)
+	}
+	if c.Bool("i") {
 		cprintf(green, 0, "Input data:\n")
 		fmt.Println(input)
 	}

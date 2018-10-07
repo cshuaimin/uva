@@ -70,7 +70,13 @@ func main() {
 			Name:      "test",
 			Usage:     "test code locally",
 			UsageText: "uva test FILE",
-			Action:    testProgram,
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "i",
+					Usage: "print input data",
+				},
+			},
+			Action: testProgram,
 		},
 	}
 
