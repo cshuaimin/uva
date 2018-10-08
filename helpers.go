@@ -47,7 +47,7 @@ func (info problemInfo) getFilename(ext string) string {
 }
 
 func download(url, file, msg string) {
-	defer spin(msg)
+	defer spin(msg)()
 	f, err := os.Create(file)
 	if err != nil {
 		panic(err)
