@@ -69,7 +69,7 @@ func show(c *cli.Context) {
 	info := getProblemInfo(pid)
 	pdfFile := pdfPath + info.getFilename("pdf")
 	if !exists(pdfFile) {
-		downloadProblemPdf(pid, pdfFile)
+		download(fmt.Sprintf("%s/external/%d/p%d.pdf", baseURL, pid/100, pid), pdfFile, "Downloading "+info.Title)
 	}
 
 	if c.Bool("g") {

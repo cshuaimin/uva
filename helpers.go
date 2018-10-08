@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"regexp"
 	"strconv"
@@ -44,8 +46,27 @@ func (info problemInfo) getFilename(ext string) string {
 	return fmt.Sprintf("%d.%s.%s", info.ID, slug, ext)
 }
 
+func download(url, file, msg string) {
+	defer spin(msg)
+	f, err := os.Create(file)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	resp, err := http.Get(url)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	io.Copy(f, resp.Body)
+}
+
 func getTestCmd(ext string, sourceFile string) (compile []string, run []string) {
-	f, err := os.Open(dataPath + "config.yml")
+	configFile := dataPath + "config.yml"
+	if !exists(configFile) {
+		download("https://github.com/cshuaimin/uva/raw/master/config.yml", configFile, "Downloading default config.yml")
+	}
+	f, err := os.Open(configFile)
 	if err != nil {
 		panic(err)
 	}

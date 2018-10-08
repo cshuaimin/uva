@@ -4,13 +4,11 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -256,21 +254,4 @@ func login() {
 	}
 	stop()
 	fmt.Println("Successfully login as", colored(username, yellow, 1))
-}
-
-func downloadProblemPdf(pid int, filename string) {
-	defer spin("Downloading " + path.Base(filename))()
-	f, err := os.Create(filename)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	resp, err := http.Get(fmt.Sprintf("%s/external/%d/p%d.pdf", baseURL, pid/100, pid))
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		panic(err)
-	}
 }
