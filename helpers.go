@@ -48,17 +48,19 @@ func (info problemInfo) getFilename(ext string) string {
 
 func download(url, file, msg string) {
 	defer spin(msg)()
-	f, err := os.Create(file)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
 	resp, err := http.Get(url)
 	if err != nil {
 		panic(err)
 	}
 	defer resp.Body.Close()
-	io.Copy(f, resp.Body)
+	f, err := os.Create(file)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	if _, err = io.Copy(f, resp.Body); err != nil {
+		panic(err)
+	}
 }
 
 func getTestCmd(ext string, sourceFile string) (compile []string, run []string) {
