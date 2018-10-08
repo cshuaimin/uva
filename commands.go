@@ -182,7 +182,7 @@ func submitAndShowResult(c *cli.Context) {
 	stop()
 
 	if result == "Accepted" {
-		cprintf(cyan, bold, yes+" Accepted (%ss)\n", runTime)
+		cprintf(cyan, bold, "%s Accepted (%ss)\n", yes, runTime)
 	} else {
 		cprintf(red, bold, "%s %s\n", no, result)
 	}

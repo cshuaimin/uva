@@ -45,7 +45,7 @@ func (info problemInfo) getFilename(ext string) string {
 }
 
 func getTestCmd(ext string, sourceFile string) (compile []string, run []string) {
-	f, err := os.Open("config.yml")
+	f, err := os.Open(dataPath + "config.yml")
 	if err != nil {
 		panic(err)
 	}
