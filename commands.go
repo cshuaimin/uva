@@ -130,7 +130,7 @@ func submit(problemID int, file string, lang int) string {
 	}
 	resp.Body.Close()
 	location := resp.Header["Location"][0]
-	sidRegex, _ := regexp.Compile(`Submission\+received\+with\+ID\+(\d+)`)
+	sidRegex := regexp.MustCompile(`Submission\+received\+with\+ID\+(\d+)`)
 	submitID := string(sidRegex.FindSubmatch([]byte(location))[1])
 	return submitID
 }

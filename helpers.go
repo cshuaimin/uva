@@ -29,11 +29,11 @@ func exists(file string) bool {
 
 func parseFilename(s string) (pid int, name string, ext string) {
 	regex := regexp.MustCompile(`(\d+)\.([\w+-_]+)\.(\w+)`)
-	match := regex.FindSubmatch([]byte(s))
+	match := regex.FindStringSubmatch(s)
 	if len(match) != 4 {
 		panic("filename pattern does not match")
 	}
-	pid, err := strconv.Atoi(string(match[1]))
+	pid, err := strconv.Atoi(match[1])
 	if err != nil {
 		panic(err)
 	}

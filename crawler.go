@@ -75,8 +75,8 @@ func crawlProblemsInfo() map[int]problemInfo {
 	problemsChan := make(chan problemInfo)
 	var problemsWaitGroup sync.WaitGroup
 	// \s does not match &nbsp;
-	titleRegex, _ := regexp.Compile("(\\d+)\u00A0-\u00A0(.+)")
-	trueIDRegex, _ := regexp.Compile(`.+problem=(\d+)`)
+	titleRegex := regexp.MustCompile("(\\d+)\u00A0-\u00A0(.+)")
+	trueIDRegex := regexp.MustCompile(`.+problem=(\d+)`)
 	getProblems := func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -98,14 +98,14 @@ func crawlProblemsInfo() map[int]problemInfo {
 				Each(func(i int, s *goquery.Selection) {
 					var problem problemInfo
 					ele := s.Find("td:nth-child(3) > a")
-					match := titleRegex.FindSubmatch([]byte(ele.Text()))[1:]
-					problem.ID, _ = strconv.Atoi(string(match[0]))
+					match := titleRegex.FindStringSubmatch(ele.Text())[1:]
+					problem.ID, _ = strconv.Atoi(match[0])
 					problem.Title = string(match[1])
 					href, ok := ele.Attr("href")
 					if !ok {
 						panic("href not exists")
 					}
-					problem.TrueID, _ = strconv.Atoi(string(trueIDRegex.FindSubmatch([]byte(href))[1]))
+					problem.TrueID, _ = strconv.Atoi(trueIDRegex.FindStringSubmatch(href)[1])
 					problem.TotalSubmissions, _ = strconv.Atoi(s.Find("td:nth-child(4)").Text())
 					text := s.Find("td:nth-child(5) > div > div:nth-child(2)").Text()
 					p, _ := strconv.ParseFloat(text[:len(text)-1], 32)
