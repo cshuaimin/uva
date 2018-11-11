@@ -26,7 +26,7 @@ func user(c *cli.Context) {
 			panic(err)
 		}
 	} else {
-		fmt.Println("You are now logged in as", colored(loadLoginInfo().Username, yellow, 1))
+		fmt.Println("You are now logged in as", colored(loadLoginInfo().Username, yellow, bold))
 	}
 }
 
@@ -52,7 +52,7 @@ func printPdf(file string, info problemInfo) {
 	// indentation
 	description = strings.Replace(description, "\n", "\n"+indent, -1)
 	for _, s := range []string{"Input", "Output", "Sample Input", "Sample Output"} {
-		description = strings.Replace(description, indent+s, colored(s, white, 1), 1)
+		description = strings.Replace(description, indent+s, colored(s, white, bold), 1)
 	}
 	description = indent + strings.TrimSpace(description)
 	fmt.Println(description)
@@ -196,14 +196,12 @@ func testProgram(c *cli.Context) {
 	pid, _, ext := parseFilename(file)
 
 	// compile source code
-	compile, run := getTestCmd(ext, file)
-	var cmd *exec.Cmd
-	var stop func()
-	// for script languages
-	if len(compile) > 0 {
-		cmd = exec.Command(compile[0], compile[1:]...)
-		stop = spin("Compiling")
-		out, err := cmd.CombinedOutput()
+	loadConfig()
+	compile := renderCmd(config.Test[ext].Compile, file)
+	// for non-script languages
+	if compile != nil {
+		stop := spin("Compiling")
+		out, err := compile.CombinedOutput()
 		stop()
 		if err != nil {
 			panic(err)
@@ -215,48 +213,58 @@ func testProgram(c *cli.Context) {
 	}
 
 	// get test case from udebug.com
-	input, output := getTestData(pid)
-	// run the program with test case
-	cmd = exec.Command(run[0], run[1:]...)
-	tmpfile, err := ioutil.TempFile("", "uva-*.txt")
+	input, answer := getTestData(pid)
+	answerFile, err := os.Create(config.Answer)
 	if err != nil {
 		panic(err)
 	}
-	defer os.Remove(tmpfile.Name())
-	cmd.Stdout = tmpfile
+	_, err = answerFile.WriteString(answer)
+	answerFile.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	outFile, err := os.Create(config.Output)
+	if err != nil {
+		panic(err)
+	}
+	run := renderCmd(config.Test[ext].Run, file)
+	run.Stdout = outFile
+
 	if input == "" {
 		input = "<No input>"
 	} else {
-		cmd.Stdin = strings.NewReader(input)
+		run.Stdin = strings.NewReader(input)
 	}
 	if c.Bool("i") {
 		cprintf(green, 0, "Input data:\n")
 		fmt.Println(input)
 	}
-	stop = spin("Running tests")
+
+	stop := spin("Running tests")
 	start := time.Now()
-	if err = cmd.Run(); err != nil {
-		panic(err)
-	}
+	err = run.Run()
 	runTime := time.Since(start)
 	stop()
+	outFile.Close()
+	if err != nil {
+		panic(err)
+	}
 
 	// compare the output with the answer
-	cmd = exec.Command("diff", "-Z", "--color=always", tmpfile.Name(), "-")
-	cmd.Stdin = strings.NewReader(output)
+	diff := exec.Command(config.Diff[0], config.Diff[1:]...)
 	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	err = cmd.Run()
-	if err != nil {
+	diff.Stdout = &buf
+	if err := diff.Run(); err != nil {
 		// allow non-zero exit code
-		if v, ok := err.(*exec.ExitError); !ok {
-			panic(v)
+		if _, ok := err.(*exec.ExitError); !ok {
+			panic(err)
 		}
 	}
-	diff := string(buf.Bytes())
-	if len(diff) != 0 {
-		cprintf(red, bold, no+" Wrong answer\n")
-		fmt.Print(diff)
+	diffOutput := string(buf.Bytes())
+	if len(diffOutput) != 0 {
+		cprintf(red, bold, no+" Wrong answer\n\n")
+		fmt.Print(diffOutput)
 	} else {
 		cprintf(cyan, bold, yes+" Accepted (%.3fs)\n", float32(runTime)/float32(time.Second))
 	}

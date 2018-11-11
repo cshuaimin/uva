@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -63,7 +64,16 @@ func download(url, file, msg string) {
 	}
 }
 
-func getTestCmd(ext string, sourceFile string) (compile []string, run []string) {
+var config struct {
+	Output string
+	Answer string
+	Diff   []string
+	Test   map[string]struct {
+		Compile, Run []string
+	}
+}
+
+func loadConfig() {
 	configFile := dataPath + "config.yml"
 	if !exists(configFile) {
 		download("https://github.com/cshuaimin/uva/raw/master/config.yml", configFile, "Downloading default config.yml")
@@ -72,20 +82,21 @@ func getTestCmd(ext string, sourceFile string) (compile []string, run []string) 
 	if err != nil {
 		panic(err)
 	}
-	var m map[string]map[string][]string
-	if err = yaml.NewDecoder(f).Decode(&m); err != nil {
+	if err = yaml.NewDecoder(f).Decode(&config); err != nil {
 		panic(err)
 	}
-	compile = m[ext]["compile"]
-	run = m[ext]["run"]
-	render := func(sl []string) {
-		for i, v := range sl {
+	config.Diff = append(config.Diff, config.Answer)
+	config.Diff = append(config.Diff, config.Output)
+}
+
+func renderCmd(cmd []string, sourceFile string) *exec.Cmd {
+	if len(cmd) > 0 {
+		for i, v := range cmd {
 			if v == "{}" {
-				sl[i] = sourceFile
+				cmd[i] = sourceFile
 			}
 		}
+		return exec.Command(cmd[0], cmd[1:]...)
 	}
-	render(compile)
-	render(run)
-	return
+	return nil
 }

@@ -34,10 +34,10 @@ func cprintf(color int, attr int, format string, a ...interface{}) {
 func spin(text string) func() {
 	dots := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	for i := 0; i < len(dots); i++ {
-		dots[i] = colored(dots[i], green, 0)
+		dots[i] = colored(dots[i], blue, 0)
 	}
 	overlay := strings.Repeat(" ", len(text)+2)
-	text = colored(text, black, 1)
+	text = colored(text, blue, 0)
 	stop := make(chan struct{})
 	done := make(chan struct{})
 

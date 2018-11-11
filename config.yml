@@ -1,14 +1,23 @@
-cc:
-  compile: [g++, -Wall, -fdiagnostics-color=always, -O2, '{}']
-  run: [./a.out]
+output: ./output.txt
+answer: ./answer.txt
 
-c:
-  compile: [gcc, -Wall, -fdiagnostics-color=always, -O2, '{}']
-  run: [./a.out]
+# https://github.com/jeffkaufman/icdiff
+#diff: [icdiff]
+diff: [diff, -Z, --color=always]
 
-java:
-  compile: [javac, '{}']
-  run: [java, Main]
+test:
+  cc:
+    compile: [g++, -Wall, -fdiagnostics-color=always, -O2, '{}']
+    run: [./a.out]
 
-py:
-  run: [python3, '{}']
+  c:
+    compile: [gcc, -Wall, -fdiagnostics-color=always, -O2, '{}']
+    run: [./a.out]
+
+  java:
+    compile: [javac, '{}']
+    run: [java, Main]
+
+  py:
+    run: [python3, '{}']
+
