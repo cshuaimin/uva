@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -203,33 +202,30 @@ func testProgram(c *cli.Context) {
 		stop := spin("Compiling")
 		out, err := compile.CombinedOutput()
 		stop()
+		failed := false
 		if err != nil {
-			panic(err)
+			if _, ok := err.(*exec.ExitError); ok {
+				// a non-zero exit code means compilation failed
+				failed = true
+			} else {
+				panic(err)
+			}
 		}
 		if len(out) != 0 {
-			cprintf(magenta, bold, no+" Warnings\n\n")
-			fmt.Print(string(out))
+			if failed {
+				cprintf(red, bold, no+" Compilation Error:\n\n")
+				fmt.Print(string(out))
+				os.Exit(1)
+			} else {
+				cprintf(magenta, bold, no+" Compilation Warning:\n\n")
+				fmt.Print(string(out))
+			}
 		}
 	}
 
 	// get test case from udebug.com
 	input, answer := getTestData(pid)
-	answerFile, err := os.Create(config.Answer)
-	if err != nil {
-		panic(err)
-	}
-	_, err = answerFile.WriteString(answer)
-	answerFile.Close()
-	if err != nil {
-		panic(err)
-	}
-
-	outFile, err := os.Create(config.Output)
-	if err != nil {
-		panic(err)
-	}
 	run := renderCmd(config.Test[ext].Run, file)
-	run.Stdout = outFile
 
 	if input == "" {
 		input = "<No input>"
@@ -243,29 +239,19 @@ func testProgram(c *cli.Context) {
 
 	stop := spin("Running tests")
 	start := time.Now()
-	err = run.Run()
+	output, err := run.Output()
 	runTime := time.Since(start)
 	stop()
-	outFile.Close()
 	if err != nil {
 		panic(err)
 	}
 
 	// compare the output with the answer
-	diff := exec.Command(config.Diff[0], config.Diff[1:]...)
-	var buf bytes.Buffer
-	diff.Stdout = &buf
-	if err := diff.Run(); err != nil {
-		// allow non-zero exit code
-		if _, ok := err.(*exec.ExitError); !ok {
-			panic(err)
-		}
-	}
-	diffOutput := string(buf.Bytes())
-	if len(diffOutput) != 0 {
-		cprintf(red, bold, no+" Wrong answer\n\n")
-		fmt.Print(diffOutput)
-	} else {
+	diff, same := wordDiff(answer, string(output), yes+" Answer", no+" Output")
+	if same {
 		cprintf(cyan, bold, yes+" Accepted (%.3fs)\n", float32(runTime)/float32(time.Second))
+	} else {
+		cprintf(red, bold, no+" Wrong answer\n\n")
+		fmt.Print(diff)
 	}
 }

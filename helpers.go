@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -65,10 +66,7 @@ func download(url, file, msg string) {
 }
 
 var config struct {
-	Output string
-	Answer string
-	Diff   []string
-	Test   map[string]struct {
+	Test map[string]struct {
 		Compile, Run []string
 	}
 }
@@ -85,8 +83,6 @@ func loadConfig() {
 	if err = yaml.NewDecoder(f).Decode(&config); err != nil {
 		panic(err)
 	}
-	config.Diff = append(config.Diff, config.Answer)
-	config.Diff = append(config.Diff, config.Output)
 }
 
 func renderCmd(cmd []string, sourceFile string) *exec.Cmd {
@@ -99,4 +95,78 @@ func renderCmd(cmd []string, sourceFile string) *exec.Cmd {
 		return exec.Command(cmd[0], cmd[1:]...)
 	}
 	return nil
+}
+
+// line-by-line diff, minimal unit is word
+func wordDiff(text1, text2, label1, label2 string) (diff string, same bool) {
+	lines1 := strings.Split(text1, "\n")
+	lines2 := strings.Split(text2, "\n")
+	same = true
+	longest := 0
+	original_lens := make([]int, len(lines1))
+	lineno := 0
+	for ; lineno < len(lines1) && lineno < len(lines2); lineno++ {
+		if l := len(lines1[lineno]); l > longest {
+			longest = l
+		}
+		original_lens[lineno] = len(lines1[lineno])
+		// ignore spaces at line end
+		lines1[lineno] = strings.TrimRight(lines1[lineno], " ")
+		lines2[lineno] = strings.TrimRight(lines2[lineno], " ")
+		words1 := strings.Split(lines1[lineno], " ")
+		words2 := strings.Split(lines2[lineno], " ")
+		idx := 0
+		for ; idx < len(words1) && idx < len(words2); idx++ {
+			if words1[idx] != words2[idx] {
+				same = false
+				// this changes the string length
+				words1[idx] = colored(words1[idx], green, 0)
+				words2[idx] = colored(words2[idx], red, 0)
+			}
+		}
+		if len(words1) != len(words2) {
+			same = false
+		}
+		for ; idx < len(words1); idx++ {
+			words1[idx] = colored(words1[idx], green, 0)
+		}
+		for ; idx < len(words2); idx++ {
+			words2[idx] = colored(words2[idx], red, 0)
+		}
+
+		lines1[lineno] = strings.Join(words1, " ")
+		lines2[lineno] = strings.Join(words2, " ")
+	}
+	for ; lineno < len(lines1); lineno++ {
+		lines1[lineno] = colored(lines1[lineno], green, 0)
+	}
+	for ; lineno < len(lines2); lineno++ {
+		lines2[lineno] = colored(lines2[lineno], red, 0)
+	}
+
+	if same {
+		return "", true
+	}
+	var buf strings.Builder
+	buf.WriteString(colored(label1, green, 0))
+	buf.WriteString(strings.Repeat(" ", longest-utf8.RuneCountInString(label1)+2))
+	buf.WriteString(colored(label2, red, 0))
+	buf.WriteString("\n")
+
+	for lineno = 0; lineno < len(lines1) && lineno < len(lines2); lineno++ {
+		buf.WriteString(lines1[lineno])
+		buf.WriteString(strings.Repeat(" ", longest-original_lens[lineno]+2))
+		buf.WriteString(lines2[lineno])
+		buf.WriteString("\n")
+	}
+	for ; lineno < len(lines1); lineno++ {
+		buf.WriteString(lines1[lineno])
+		buf.WriteString("\n")
+	}
+	for ; lineno < len(lines2); lineno++ {
+		buf.WriteString(strings.Repeat(" ", longest+2))
+		buf.WriteString(lines2[lineno])
+		buf.WriteString("\n")
+	}
+	return buf.String(), same
 }
