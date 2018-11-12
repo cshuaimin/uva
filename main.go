@@ -10,7 +10,7 @@ func main() {
 	app := cli.NewApp()
 	app.Usage = "A cli tool to enjoy uva oj!"
 	app.UsageText = "uva [command]"
-	app.Version = "0.1.0"
+	app.Version = "0.2.0"
 
 	loadCookies := func(c *cli.Context) error {
 		loadLoginInfo()
