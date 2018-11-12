@@ -137,16 +137,22 @@ func wordDiff(text1, text2, label1, label2 string) (diff string, same bool) {
 		lines1[lineno] = strings.Join(words1, " ")
 		lines2[lineno] = strings.Join(words2, " ")
 	}
+	if len(lines1) != len(lines2) {
+		same = false
+	}
 	for ; lineno < len(lines1); lineno++ {
+		if l := len(lines1[lineno]); l > longest {
+			longest = l
+		}
 		lines1[lineno] = colored(lines1[lineno], green, 0)
 	}
 	for ; lineno < len(lines2); lineno++ {
 		lines2[lineno] = colored(lines2[lineno], red, 0)
 	}
-
 	if same {
 		return "", true
 	}
+
 	var buf strings.Builder
 	buf.WriteString(colored(label1, green, 0))
 	buf.WriteString(strings.Repeat(" ", longest-utf8.RuneCountInString(label1)+2))
