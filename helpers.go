@@ -174,5 +174,5 @@ func wordDiff(text1, text2, label1, label2 string) (diff string, same bool) {
 		buf.WriteString(lines2[lineno])
 		buf.WriteString("\n")
 	}
-	return buf.String(), same
+	return buf.String(), false
 }
