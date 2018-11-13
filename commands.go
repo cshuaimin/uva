@@ -258,16 +258,18 @@ func testProgram(c *cli.Context) {
 		}
 	}
 
-	if answerFile := c.String("a"); answerFile == "" {
-		// If the input is provided but there is no answer, we do not compare.
-		fmt.Println(string(output))
-		return
-	} else {
-		data, err := ioutil.ReadFile(answerFile)
-		if err != nil {
-			panic(err)
+	if c.String("i") != "" {
+		if answerFile := c.String("a"); answerFile == "" {
+			// If the input is provided but there is no answer, we do not compare.
+			fmt.Println(string(output))
+			return
+		} else {
+			data, err := ioutil.ReadFile(answerFile)
+			if err != nil {
+				panic(err)
+			}
+			answer = string(data)
 		}
-		answer = string(data)
 	}
 	diff, same := wordDiff(answer, string(output), yes+" Answer", no+" Output")
 	if same {
