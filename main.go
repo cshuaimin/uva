@@ -71,12 +71,34 @@ func main() {
 			Usage:     "test code locally",
 			UsageText: "uva test FILE",
 			Flags: []cli.Flag{
-				cli.BoolFlag{
+				cli.StringFlag{
 					Name:  "i",
-					Usage: "print input data",
+					Usage: "input file",
+				},
+				cli.StringFlag{
+					Name:  "a",
+					Usage: "answer file",
 				},
 			},
 			Action: testProgram,
+		},
+		{
+			Name:      "dump",
+			Usage:     "dump test cases to files",
+			UsageText: "uva dump FILE",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "i",
+					Usage: "file to store input",
+					Value: "input.txt",
+				},
+				cli.StringFlag{
+					Name:  "a",
+					Usage: "file to store answer",
+					Value: "answer.txt",
+				},
+			},
+			Action: dump,
 		},
 	}
 

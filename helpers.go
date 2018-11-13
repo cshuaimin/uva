@@ -153,6 +153,9 @@ func wordDiff(text1, text2, label1, label2 string) (diff string, same bool) {
 		return "", true
 	}
 
+	if l := utf8.RuneCountInString(label1); l > longest {
+		longest = l
+	}
 	var buf strings.Builder
 	buf.WriteString(colored(label1, green, 0))
 	buf.WriteString(strings.Repeat(" ", longest-utf8.RuneCountInString(label1)+2))

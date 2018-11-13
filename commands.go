@@ -107,11 +107,7 @@ func submit(problemID int, file string, lang int) string {
 		"category":  {strconv.Itoa(category)},
 		"language":  {strconv.Itoa(lang)},
 	}
-	f, err := os.Open(file)
-	if err != nil {
-		panic(err)
-	}
-	code, err := ioutil.ReadAll(f)
+	code, err := ioutil.ReadFile(file)
 	if err != nil {
 		panic(err)
 	}
@@ -192,6 +188,9 @@ func testProgram(c *cli.Context) {
 	if c.NArg() == 0 {
 		panic("filename required")
 	}
+	if c.String("i") == "" && c.String("a") != "" {
+		panic("flag -a must be used with -i")
+	}
 	file := c.Args().First()
 	pid, _, ext := parseFilename(file)
 
@@ -224,18 +223,20 @@ func testProgram(c *cli.Context) {
 		}
 	}
 
-	// get test case from udebug.com
-	input, answer := getTestData(pid)
 	run := renderCmd(config.Test[ext].Run, file)
-
-	if input == "" {
-		input = "<No input>"
-	} else {
+	var answer string
+	if inputFile := c.String("i"); inputFile == "" {
+		// get test case from udebug.com
+		var input string
+		input, answer = getTestData(pid)
 		run.Stdin = strings.NewReader(input)
-	}
-	if c.Bool("i") {
-		cprintf(green, 0, "Input data:\n")
-		fmt.Println(input)
+	} else {
+		f, err := os.Open(inputFile)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+		run.Stdin = f
 	}
 
 	stop := spin("Running tests")
@@ -257,12 +258,37 @@ func testProgram(c *cli.Context) {
 		}
 	}
 
-	// compare the output with the answer
+	if answerFile := c.String("a"); answerFile == "" {
+		// If the input is provided but there is no answer, we do not compare.
+		fmt.Println(string(output))
+		return
+	} else {
+		data, err := ioutil.ReadFile(answerFile)
+		if err != nil {
+			panic(err)
+		}
+		answer = string(data)
+	}
 	diff, same := wordDiff(answer, string(output), yes+" Answer", no+" Output")
 	if same {
 		cprintf(cyan, bold, yes+" Accepted (%.3fs)\n", float32(runTime)/float32(time.Second))
 	} else {
 		cprintf(red, bold, no+" Wrong answer\n\n")
 		fmt.Print(diff)
+	}
+}
+
+func dump(c *cli.Context) {
+	if c.NArg() == 0 {
+		panic("filename required")
+	}
+	file := c.Args().First()
+	pid, _, _ := parseFilename(file)
+	input, answer := getTestData(pid)
+	if err := ioutil.WriteFile(c.String("i"), []byte(input), 0666); err != nil {
+		panic(err)
+	}
+	if err := ioutil.WriteFile(c.String("a"), []byte(answer), 0666); err != nil {
+		panic(err)
 	}
 }
