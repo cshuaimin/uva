@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -243,7 +244,17 @@ func testProgram(c *cli.Context) {
 	runTime := time.Since(start)
 	stop()
 	if err != nil {
-		panic(err)
+		if ee, ok := err.(*exec.ExitError); ok {
+			if status, ok := ee.Sys().(syscall.WaitStatus); ok {
+				cprintf(red, bold, no+" Program exited with code %d\n\n", status.ExitStatus())
+			} else {
+				cprintf(red, bold, no+" Program exited with non-zero code\n\n")
+			}
+			fmt.Println(string(ee.Stderr))
+			os.Exit(1)
+		} else {
+			panic(err)
+		}
 	}
 
 	// compare the output with the answer
