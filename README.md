@@ -1,22 +1,22 @@
-# uva-cli
+> A productive cli tool to enjoy [UVa Online Judge](https://uva.onlinejudge.org)!
 
-A productive cli tool to enjoy [UVa Online Judge](https://uva.onlinejudge.org)!
-
-- A very effficient way to fight questions.
-- Test the code locally,
-- or submit it to the UVa.
+A very effficient way to fight questions:
+- Print the problem description in terminal with a format like man(1).
+- Compile and test the code locally, use test cases from udebug.com.
+- Use a special diff algorithm to compare the output with the answer.
+- Finally, you can submit the code to online judge and get result.
 
 ## Screenshot
 
-[![asciicast](https://asciinema.org/a/4ootHvOrElVB52H050jDvlWGU.png)](https://asciinema.org/a/4ootHvOrElVB52H050jDvlWGU)
+[![asciicast](https://asciinema.org/a/hM9Qn8iS0ugrHCXrP3JkSIVSz.svg)](https://asciinema.org/a/hM9Qn8iS0ugrHCXrP3JkSIVSz)
 
 ## Installation
 
 ### Install prebuilt packages
 
-Download prebuilt binary from [releases page](https://github.com/cshuaimin/uva/releases)
-Open/extract the archive.
-Move uva to your path (/usr/loca/bin for example).
+1. Download prebuilt binary from [releases page](https://github.com/cshuaimin/uva/releases).
+2. Open/extract the archive.
+3. Move uva to your path (/usr/local/bin for example).
 
 ### Build from source
 
