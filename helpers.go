@@ -29,7 +29,7 @@ func exists(file string) bool {
 }
 
 func parseFilename(s string) (pid int, name string, ext string) {
-	regex := regexp.MustCompile(`(\d+)\.([\w+-_]+)\.(\w+)`)
+	regex := regexp.MustCompile(`(\d+)\.([\w-]+)\.(\w+)`)
 	match := regex.FindStringSubmatch(s)
 	if len(match) != 4 {
 		panic("filename pattern does not match")
@@ -43,8 +43,12 @@ func parseFilename(s string) (pid int, name string, ext string) {
 	return
 }
 
-func (info problemInfo) getFilename(ext string) string {
-	slug := strings.Replace(info.Title, " ", "-", -1)
+var symbol = regexp.MustCompile("[^\\w\\s]")
+var spaces = regexp.MustCompile("\\s+")
+
+func (info problemInfo) getFileName(ext string) string {
+	slug := symbol.ReplaceAllString(info.Title, "")
+	slug = spaces.ReplaceAllString(slug, "-")
 	return fmt.Sprintf("%d.%s.%s", info.ID, slug, ext)
 }
 

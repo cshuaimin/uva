@@ -47,7 +47,7 @@ func getProblemInfo(pid int) problemInfo {
 }
 
 func getTestData(pid int) (input string, output string) {
-	testDataFile := testDataPath + getProblemInfo(pid).getFilename("gob")
+	testDataFile := testDataPath + getProblemInfo(pid).getFileName("gob")
 	if exists(testDataFile) {
 		f, err := os.Open(testDataFile)
 		if err != nil {

@@ -67,7 +67,7 @@ func show(c *cli.Context) {
 		panic(err)
 	}
 	info := getProblemInfo(pid)
-	pdfFile := pdfPath + info.getFilename("pdf")
+	pdfFile := pdfPath + info.getFileName("pdf")
 	if !exists(pdfFile) {
 		download(fmt.Sprintf("%s/external/%d/p%d.pdf", baseURL, pid/100, pid), pdfFile, "Downloading "+info.Title)
 	}
@@ -89,7 +89,7 @@ func touch(c *cli.Context) {
 	if err != nil {
 		panic(err)
 	}
-	name := getProblemInfo(pid).getFilename(c.String("lang"))
+	name := getProblemInfo(pid).getFileName(c.String("lang"))
 	f, err := os.Create(name)
 	if err != nil {
 		panic(err)
