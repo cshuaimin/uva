@@ -247,7 +247,9 @@ func testProgram(c *cli.Context) {
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
 			// Print the output generated before the crash.
-			fmt.Printf("%s\n\n", output)
+			if len(output) != 0 {
+				fmt.Printf("%s\n\n", output)
+			}
 			if status, ok := ee.Sys().(syscall.WaitStatus); ok {
 				cprintf(red, bold, no+" Program exited with code %d\n\n", status.ExitStatus())
 			} else {
