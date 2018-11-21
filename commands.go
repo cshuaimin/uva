@@ -95,7 +95,7 @@ func touch(c *cli.Context) {
 		panic(err)
 	}
 	f.Close()
-	fmt.Printf("Source code: %s\n", colored(name, yellow, underline))
+	fmt.Printf("Created %s\n", colored(name, yellow, underline))
 }
 
 func submit(problemID int, file string, lang int) string {
@@ -246,6 +246,8 @@ func testProgram(c *cli.Context) {
 	stop()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
+			// Print the output generated before the crash.
+			fmt.Printf("%s\n\n", output)
 			if status, ok := ee.Sys().(syscall.WaitStatus); ok {
 				cprintf(red, bold, no+" Program exited with code %d\n\n", status.ExitStatus())
 			} else {
@@ -293,4 +295,5 @@ func dump(c *cli.Context) {
 	if err := ioutil.WriteFile(c.String("a"), []byte(answer), 0666); err != nil {
 		panic(err)
 	}
+	fmt.Printf("Dumped to %s and %s\n", colored(c.String("i"), yellow, underline), colored(c.String("a"), yellow, underline))
 }
