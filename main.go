@@ -53,7 +53,6 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "lang",
-					Value: "cc",
 					Usage: "file extension",
 				},
 			},
@@ -78,6 +77,10 @@ func main() {
 				cli.StringFlag{
 					Name:  "a",
 					Usage: "answer file",
+				},
+				cli.BoolFlag{
+					Name:  "b",
+					Usage: "compare each line of output with the answer byte-by-byte",
 				},
 			},
 			Action: testProgram,

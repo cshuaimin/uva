@@ -89,7 +89,15 @@ func touch(c *cli.Context) {
 	if err != nil {
 		panic(err)
 	}
-	name := getProblemInfo(pid).getFileName(c.String("lang"))
+	lang := c.String("lang")
+	if lang == "" {
+		loadConfig()
+		lang = config.Lang
+		if lang == "" {
+			lang = "cc"
+		}
+	}
+	name := getProblemInfo(pid).getFileName(lang)
 	f, err := os.Create(name)
 	if err != nil {
 		panic(err)
@@ -275,7 +283,12 @@ func testProgram(c *cli.Context) {
 			answer = string(data)
 		}
 	}
-	diff, same := wordDiff(answer, string(output), yes+" Answer", no+" Output")
+
+	sep := " "
+	if c.Bool("b") {
+		sep = ""
+	}
+	diff, same := diff(answer, string(output), yes+" Answer", no+" Output", sep)
 	if same {
 		cprintf(cyan, bold, yes+" Accepted (%.3fs)\n", float32(runTime)/float32(time.Second))
 	} else {

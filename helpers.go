@@ -73,6 +73,7 @@ var config struct {
 	Test map[string]struct {
 		Compile, Run []string
 	}
+	Lang string
 }
 
 func loadConfig() {
@@ -101,8 +102,8 @@ func renderCmd(cmd []string, sourceFile string) *exec.Cmd {
 	return nil
 }
 
-// line-by-line diff, minimal unit is word
-func wordDiff(text1, text2, label1, label2 string) (diff string, same bool) {
+// line-by-line diff
+func diff(text1, text2, label1, label2 string, sep string) (diff string, same bool) {
 	lines1 := strings.Split(text1, "\n")
 	lines2 := strings.Split(text2, "\n")
 	same = true
@@ -117,8 +118,8 @@ func wordDiff(text1, text2, label1, label2 string) (diff string, same bool) {
 		// ignore spaces at line end
 		lines1[lineno] = strings.TrimRight(lines1[lineno], " ")
 		lines2[lineno] = strings.TrimRight(lines2[lineno], " ")
-		words1 := strings.Split(lines1[lineno], " ")
-		words2 := strings.Split(lines2[lineno], " ")
+		words1 := strings.Split(lines1[lineno], sep)
+		words2 := strings.Split(lines2[lineno], sep)
 		idx := 0
 		for ; idx < len(words1) && idx < len(words2); idx++ {
 			if words1[idx] != words2[idx] {
@@ -138,8 +139,8 @@ func wordDiff(text1, text2, label1, label2 string) (diff string, same bool) {
 			words2[idx] = colored(words2[idx], red, 0)
 		}
 
-		lines1[lineno] = strings.Join(words1, " ")
-		lines2[lineno] = strings.Join(words2, " ")
+		lines1[lineno] = strings.Join(words1, sep)
+		lines2[lineno] = strings.Join(words2, sep)
 	}
 	if len(lines1) != len(lines2) {
 		same = false
