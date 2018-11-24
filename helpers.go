@@ -28,9 +28,12 @@ func exists(file string) bool {
 	return !os.IsNotExist(err)
 }
 
+var symbol = regexp.MustCompile(`[^\w\s-]`)
+var spaces = regexp.MustCompile(`\s+`)
+var filename = regexp.MustCompile(`(\d+)\.([\w-]+)\.(\w+)`)
+
 func parseFilename(s string) (pid int, name string, ext string) {
-	regex := regexp.MustCompile(`(\d+)\.([\w-]+)\.(\w+)`)
-	match := regex.FindStringSubmatch(s)
+	match := filename.FindStringSubmatch(s)
 	if len(match) != 4 {
 		panic("filename pattern does not match")
 	}
@@ -42,9 +45,6 @@ func parseFilename(s string) (pid int, name string, ext string) {
 	ext = string(match[3])
 	return
 }
-
-var symbol = regexp.MustCompile("[^\\w\\s]")
-var spaces = regexp.MustCompile("\\s+")
 
 func (info problemInfo) getFileName(ext string) string {
 	slug := symbol.ReplaceAllString(info.Title, "")
