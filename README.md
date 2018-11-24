@@ -1,8 +1,8 @@
-> A productive cli tool to enjoy [UVa Online Judge](https://uva.onlinejudge.org)!
+## A productive cli tool to enjoy [UVa Online Judge](https://uva.onlinejudge.org)!
 
 A very effficient way to fight questions:
 - Print the problem description in terminal with a format like man(1).
-- Compile and test the code locally, use test cases from udebug.com.
+- Compile and test the code locally, using test cases from udebug.com.
 - Use a special diff algorithm to compare the output with the answer.
 - Finally, you can submit the code to online judge and get result.
 
@@ -24,28 +24,42 @@ A very effficient way to fight questions:
 $ go get github.com/cshuaimin/uva
 ```
 
-## Quick start
+## Usage
+```console
+$ uva -h
+NAME:
+   uva - A cli tool to enjoy uva oj!
 
-- Login with your UVa account:
+USAGE:                                                                                                                                 
+   uva [command]
 
-  ```sh
-  $ uva user -l
-  ```
+VERSION:
+   0.3.0
 
-- Show description:
+COMMANDS:
+     user     manage account
+     show     show problem by id
+     touch    create source file
+     submit   submit code
+     test     test code locally
+     dump     dump test cases to files
+     help, h  Shows a list of commands or help for one command
 
-  ```sh
-  $ uva show <ID>
-  ```
+GLOBAL OPTIONS:
+   --help, -h     show help
+   --version, -v  print the version
+```
 
-- Run tests:
+```console
+$ uva test -h                      
+NAME:
+   uva test - test code locally
 
-  ```sh
-  $ uva test <file>
-  ```
+USAGE:
+   uva test FILE
 
-- Submit it!
-
-  ```sh
-  $ uva submit <file>
-  ```
+OPTIONS:
+   -i value  input file
+   -a value  answer file
+   -b        compare each line of output with the answer byte-by-byte
+```
