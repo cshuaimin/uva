@@ -20,7 +20,8 @@ import (
 
 func user(c *cli.Context) {
 	if c.Bool("l") {
-		login()
+		username := login()
+		fmt.Println("Successfully login as", colored(username, yellow, 1))
 	} else if c.Bool("L") {
 		if err := os.Remove(loginInfoFile); err != nil {
 			panic(err)

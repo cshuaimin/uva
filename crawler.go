@@ -191,8 +191,7 @@ type loginInfo struct {
 	Cookies  []*http.Cookie
 }
 
-func login() {
-	var username string
+func login() (username string) {
 	fmt.Print("Username: ")
 	fmt.Scanln(&username)
 	fmt.Print("Password: ")
@@ -208,7 +207,7 @@ func login() {
 	}
 	http.DefaultClient.Jar = jar
 
-	stop := spin("Signing in uva.onlinejudge.org")
+	defer spin("Signing in uva.onlinejudge.org")()
 	resp, err := http.Get(baseURL)
 	if err != nil {
 		panic(err)
@@ -252,6 +251,5 @@ func login() {
 	if err := gob.NewEncoder(f).Encode(info); err != nil {
 		panic(err)
 	}
-	stop()
-	fmt.Println("Successfully login as", colored(username, yellow, 1))
+	return
 }
