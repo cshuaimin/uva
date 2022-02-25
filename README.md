@@ -57,7 +57,8 @@ NAME:
    uva test - test code locally
 
 USAGE:
-   uva test FILE
+   uva test {id}.{name}.{ext}}
+   uva test 10041.happy.cpp
 
 OPTIONS:
    -i value  input file
