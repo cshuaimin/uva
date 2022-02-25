@@ -19,7 +19,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-const baseURL = "https://uva.onlinejudge.org"
+const baseURL = "https://onlinejudge.org"
 
 var uvaURL, _ = url.Parse(baseURL)
 
@@ -207,7 +207,7 @@ func login() (username string) {
 	}
 	http.DefaultClient.Jar = jar
 
-	defer spin("Signing in uva.onlinejudge.org")()
+	defer spin("Signing in onlinejudge.org (UVa)")()
 	resp, err := http.Get(baseURL)
 	if err != nil {
 		panic(err)
