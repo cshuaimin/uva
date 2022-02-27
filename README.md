@@ -17,7 +17,7 @@ A very effficient way to fight questions:
 1. Download prebuilt binary from [releases page](https://github.com/cshuaimin/uva/releases).
 2. Open/extract the archive.
 3. Move uva to your path (/usr/local/bin for example).
-4. Install pdftotext cli (brew install poppler)
+4. (macOS) Install `pdftotext` cli: `brew install poppler`
 
 ### Build from source
 
