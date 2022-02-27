@@ -1,4 +1,4 @@
-module github.com/linroex/uva
+module github.com/cshuaimin/uva
 
 go 1.17
 
