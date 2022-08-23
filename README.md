@@ -57,7 +57,7 @@ NAME:
    uva test - test code locally
 
 USAGE:
-   uva test {id}.{name}.{ext}}
+   uva test FILE
    uva test 10041.happy.cpp
 
 OPTIONS:

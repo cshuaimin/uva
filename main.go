@@ -68,7 +68,7 @@ func main() {
 		{
 			Name:      "test",
 			Usage:     "test code locally",
-			UsageText: "uva test {id}.{name}.{ext}}\n   uva test 10041.happy.cpp",
+			UsageText: "uva test FILE",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "i",
