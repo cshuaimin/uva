@@ -203,10 +203,13 @@ func testProgram(c *cli.Context) {
 	file := c.Args().First()
 	pid, _, ext := parseFilename(file)
 
-	// compile source code
 	loadConfig()
+	if config.Test[ext].Run == nil {
+		panic("file type not supported, please add compile and run commands to config.yml")
+	}
+
 	compile := renderCmd(config.Test[ext].Compile, file)
-	// for non-script languages
+	// compile source code for non-script languages
 	if compile != nil {
 		stop := spin("Compiling")
 		out, err := compile.CombinedOutput()
