@@ -35,7 +35,7 @@ var filename = regexp.MustCompile(`(\d+)\.([\w-]+)\.(\w+)`)
 func parseFilename(s string) (pid int, name string, ext string) {
 	match := filename.FindStringSubmatch(s)
 	if len(match) != 4 {
-		panic("filename pattern does not match")
+    panic("filename pattern does not match. help: please create file with `uva touch` command")
 	}
 	pid, err := strconv.Atoi(match[1])
 	if err != nil {

@@ -1,4 +1,4 @@
-## A productive cli tool to enjoy [UVa Online Judge](https://uva.onlinejudge.org)!
+## A productive cli tool to enjoy [UVa Online Judge](https://onlinejudge.org)!
 
 A very effficient way to fight questions:
 - Print the problem description in terminal with a format like man(1).
@@ -17,11 +17,12 @@ A very effficient way to fight questions:
 1. Download prebuilt binary from [releases page](https://github.com/cshuaimin/uva/releases).
 2. Open/extract the archive.
 3. Move uva to your path (/usr/local/bin for example).
+4. (macOS) Install `pdftotext` cli: `brew install poppler`
 
 ### Build from source
 
 ```sh
-$ go get github.com/cshuaimin/uva
+$ go install github.com/cshuaimin/uva@latest
 ```
 
 ## Usage
@@ -57,6 +58,7 @@ NAME:
 
 USAGE:
    uva test FILE
+   uva test 10041.happy.cpp
 
 OPTIONS:
    -i value  input file
